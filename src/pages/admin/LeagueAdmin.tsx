@@ -128,6 +128,32 @@ function pair(home: string, away: string): { home: number; away: number } | null
 
 const inputClass = 'mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm';
 
+const ROSTER_PLACEHOLDER = `计算机学院,计算机
+软件工程1班,张三,10
+软件工程1班,李四,11
+
+或四列：队伍,班级,姓名,号码`;
+
+function bytesToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const size = 0x8000;
+  for (let index = 0; index < bytes.length; index += size) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + size));
+  }
+  return btoa(binary);
+}
+
+function downloadRosterTemplate(): void {
+  const csv = '\uFEFF队伍,班级,姓名,号码\n计算机学院,软件工程1班,张三,10\n计算机学院,软件工程1班,李四,11\n机电工程学院,机械1班,王五,7\n';
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = '报名名单.csv';
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function LeagueAdminBody() {
   const { leagueId } = useParams();
   const navigate = useNavigate();
@@ -153,6 +179,8 @@ function LeagueAdminBody() {
   const [playerErrors, setPlayerErrors] = useState<Record<string, string>>({});
   const [savingPlayerFor, setSavingPlayerFor] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
+  const [rosterText, setRosterText] = useState('');
+  const [importing, setImporting] = useState(false);
   const [form, setForm] = useState<MatchForm>(blankMatch);
   const [selected, setSelected] = useState<string[]>([]);
 
@@ -226,6 +254,45 @@ function LeagueAdminBody() {
       setTeamName('');
       setTeamShort('');
     });
+  }
+
+  async function submitRoster(body: { text?: string; docxBase64?: string }) {
+    setNotice('');
+    setError('');
+    setImporting(true);
+    try {
+      const result = await api<{ teamsCreated: number; playersCreated: number }>(`/api/admin/leagues/${league.id}/roster`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      await refresh();
+      setRosterText('');
+      setNotice(`已导入 ${result.playersCreated} 名队员，新建 ${result.teamsCreated} 支队伍。同名队伍会把新队员加进原队伍。`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '导入失败');
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function onRosterFile(file: File | undefined, input: HTMLInputElement) {
+    if (!file) return;
+    const name = file.name.toLowerCase();
+    try {
+      if (name.endsWith('.docx')) {
+        await submitRoster({ docxBase64: bytesToBase64(await file.arrayBuffer()) });
+      } else if (name.endsWith('.txt') || name.endsWith('.csv') || name.endsWith('.tsv') || file.type.startsWith('text/')) {
+        setRosterText(await file.text());
+        setNotice('文件已放进文本框，确认后点「导入名单」。');
+        setError('');
+      } else {
+        setError('请上传 .docx、.csv 或 .txt。旧版 .doc 请另存为 docx，或把表格复制后粘贴。');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '文件读不出来');
+    } finally {
+      input.value = '';
+    }
   }
 
   function editTeam(team: Team) {
@@ -441,7 +508,43 @@ function LeagueAdminBody() {
 
       <section className="mb-8">
         <h2 className="mb-1 font-semibold">报名</h2>
-        <p className="mb-3 text-sm text-slate-500">先创建队伍，再在对应队伍中逐个添加成员。每位成员都需要填写班级、姓名和号码。</p>
+        <p className="mb-3 text-sm text-slate-500">可以一次导入整份名单，也可以先创建队伍再逐个添加。每位成员都需要班级、姓名和号码。</p>
+
+        <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
+          <h3 className="mb-1 text-sm font-semibold">一次导入</h3>
+          <p className="mb-3 text-sm text-slate-500">
+            从 Word 或 Excel 复制表格后粘贴。四列依次是队伍、班级、姓名、号码。也可以先写一行队伍名，下面每行写班级、姓名、号码。上传 .docx 会直接导入，.csv 会先放进文本框。
+          </p>
+          <textarea
+            value={rosterText}
+            onChange={(event) => setRosterText(event.target.value)}
+            rows={6}
+            placeholder={ROSTER_PLACEHOLDER}
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm"
+          />
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              disabled={importing || !rosterText.trim()}
+              onClick={() => void submitRoster({ text: rosterText })}
+              className="rounded-lg bg-gdut-700 px-3 py-1.5 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {importing ? '导入中…' : '导入名单'}
+            </button>
+            <label className="cursor-pointer rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700">
+              选择 Word 或表格
+              <input
+                type="file"
+                accept=".docx,.csv,.txt,.tsv,text/csv,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                className="sr-only"
+                onChange={(event) => void onRosterFile(event.target.files?.[0], event.target)}
+              />
+            </label>
+            <button type="button" onClick={downloadRosterTemplate} className="text-sm text-gdut-600">
+              下载示例表格
+            </button>
+          </div>
+        </div>
 
         <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
           <h3 className="mb-3 text-sm font-semibold">{editingTeam ? '编辑队伍' : '创建队伍'}</h3>

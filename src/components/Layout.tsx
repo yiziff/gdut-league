@@ -37,6 +37,9 @@ export default function Layout() {
             <NavLink to="/teams" className={navClass}>
               队伍
             </NavLink>
+            <NavLink to="/player" className="shrink-0 rounded-full bg-player-500 px-3 py-1.5 text-sm font-semibold text-white">
+              球员
+            </NavLink>
             <NavLink to="/admin" className={navClass}>
               管理
             </NavLink>

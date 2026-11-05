@@ -2,10 +2,27 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import express, { type NextFunction, type Request, type Response } from 'express';
-import type { Division, League, Match, MatchStatus, PlayerLine, Score, Side, Sport, Stage, Team } from '../src/types.ts';
+import type { Division, League, Match, MatchStatus, Player, PlayerLine, Score, Side, Sport, Stage, Team } from '../src/types.ts';
+import { summarizeCareer } from '../src/lib/career.ts';
+import { docxToText } from '../src/lib/docxRoster.ts';
 import { planFormat, type FormatPreset } from '../src/lib/formats.ts';
+import { parseRoster } from '../src/lib/rosterImport.ts';
 import { addDays, roundRobinPairings } from '../src/lib/roundRobin.ts';
-import { clearSessionCookie, createSession, destroySession, passwordOk, readCookie, sessionValid, setSessionCookie } from './auth.ts';
+import {
+  clearPlayerCookie,
+  clearSessionCookie,
+  createPlayerSession,
+  createSession,
+  destroyPlayerSession,
+  destroySession,
+  passwordOk,
+  playerIdFromRequest,
+  readPlayerToken,
+  readCookie,
+  sessionValid,
+  setPlayerCookie,
+  setSessionCookie,
+} from './auth.ts';
 import {
   allMatches,
   allTeams,
@@ -15,6 +32,8 @@ import {
   removeMatch,
   deletePlayer,
   deleteTeam,
+  findPlayerAccounts,
+  getPlayerAccount,
   getLeague,
   getMatch,
   getTeam,
@@ -29,6 +48,7 @@ import {
   transaction,
   updateLeague,
   updateMatch,
+  updatePlayer,
   updateTeam,
 } from './db.ts';
 import { seedIfEmpty } from './seed.ts';
@@ -198,7 +218,7 @@ app.use('/api', (_req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
   next();
 });
-app.use(express.json());
+app.use(express.json({ limit: '4mb' }));
 
 app.get('/api/leagues', (req, res) => {
   const sport = typeof req.query.sport === 'string' ? req.query.sport : undefined;
@@ -226,6 +246,109 @@ app.post('/api/admin/logout', (req, res) => {
   destroySession(readCookie(req));
   clearSessionCookie(res);
   res.json({ ok: true });
+});
+
+function requirePlayerAccount(req: Request) {
+  const id = playerIdFromRequest(req);
+  const account = id ? getPlayerAccount(id) : undefined;
+  if (!account) throw new ApiError(401, '请先登录');
+  return account;
+}
+
+function playerBody(body: unknown) {
+  const source = (body ?? {}) as Record<string, unknown>;
+  const genderRaw = source.gender;
+  if (genderRaw !== undefined && genderRaw !== '' && genderRaw !== 'male' && genderRaw !== 'female') {
+    throw new ApiError(400, '性别不正确');
+  }
+  const gender: '' | 'male' | 'female' = genderRaw === 'male' || genderRaw === 'female' ? genderRaw : '';
+  const measure = (value: unknown, label: string) => {
+    if (typeof value !== 'string' || !value.trim()) return '';
+    if (!/^\d{2,3}(\.\d)?$/.test(value.trim())) throw new ApiError(400, `${label}请填数字`);
+    return value.trim();
+  };
+  const position = optionalText(source.position) ?? '';
+  if (position.length > 20) throw new ApiError(400, '位置太长了');
+  return {
+    className: text(source.className, '班级'),
+    name: text(source.name, '姓名'),
+    number: text(source.number, '号码'),
+    position,
+    gender,
+    height: measure(source.height, '身高'),
+    weight: measure(source.weight, '体重'),
+  };
+}
+
+function writePlayer(player: Player, mode: 'insert' | 'update'): void {
+  try {
+    if (mode === 'insert') insertPlayer(player);
+    else updatePlayer(player);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('duplicate player number')) {
+      throw new ApiError(409, `号码 ${player.number} 已被使用`);
+    }
+    throw error;
+  }
+}
+
+app.post('/api/player/login', (req, res) => {
+  const name = text(req.body?.name, '姓名');
+  const number = text(req.body?.number, '号码');
+  const matches = findPlayerAccounts(name, number);
+  const requested = optionalText(req.body?.playerId);
+  const chosen = requested ? matches.filter((account) => account.player.id === requested) : matches;
+  if (chosen.length === 0) throw new ApiError(404, '没有这名队员，可以先报名');
+  if (chosen.length > 1) {
+    res.json({
+      status: 'choose',
+      choices: chosen.map((account) => ({
+        playerId: account.player.id,
+        teamName: account.team.name,
+        leagueName: account.league.name,
+        sport: account.league.sport,
+      })),
+    });
+    return;
+  }
+  setPlayerCookie(res, createPlayerSession(chosen[0].player.id));
+  res.json({ status: 'ok', ...chosen[0] });
+});
+
+app.post('/api/player/logout', (req, res) => {
+  destroyPlayerSession(readPlayerToken(req));
+  clearPlayerCookie(res);
+  res.json({ ok: true });
+});
+
+app.post('/api/player/join', (req, res) => {
+  const team = getTeam(text(req.body?.teamId, '队伍'));
+  if (!team) throw new ApiError(404, '队伍不存在');
+  const fields = playerBody(req.body);
+  const player: Player = { id: randomUUID(), teamId: team.id, ...fields };
+  writePlayer(player, 'insert');
+  const account = getPlayerAccount(player.id);
+  if (!account) throw new ApiError(500, '报名没有保存');
+  setPlayerCookie(res, createPlayerSession(player.id));
+  res.status(201).json({ status: 'ok', ...account });
+});
+
+app.get('/api/player/me', (req, res) => {
+  res.json(requirePlayerAccount(req));
+});
+
+app.patch('/api/player/me', (req, res) => {
+  const account = requirePlayerAccount(req);
+  const fields = playerBody(req.body);
+  const player: Player = { ...account.player, ...fields };
+  writePlayer(player, 'update');
+  res.json(getPlayerAccount(player.id));
+});
+
+app.get('/api/player/career', (req, res) => {
+  const account = requirePlayerAccount(req);
+  const summary = summarizeCareer(account.team.id, account.player.id, matchesOf(account.league.id));
+  res.json({ sport: account.league.sport, ...summary });
 });
 
 app.use('/api/admin', (req, res, next) => {
@@ -262,6 +385,93 @@ app.delete('/api/admin/leagues/:id', (req, res) => {
   requireLeague(req.params.id);
   deleteLeague(req.params.id);
   res.json({ ok: true });
+});
+
+const TEAM_COLORS = ['#1d63c4', '#0f766e', '#b45309', '#be123c', '#6d28d9', '#0369a1', '#15803d', '#c2410c'];
+
+app.post('/api/admin/leagues/:id/roster', (req, res) => {
+  const league = requireLeague(req.params.id);
+  let raw = '';
+  if (typeof req.body?.docxBase64 === 'string' && req.body.docxBase64.trim()) {
+    let file: Buffer;
+    try {
+      file = Buffer.from(req.body.docxBase64, 'base64');
+    } catch {
+      throw new ApiError(400, 'Word 文件读不出来');
+    }
+    if (file.length < 4 || file.readUInt32LE(0) !== 0x04034b50) {
+      throw new ApiError(400, '请上传 .docx，或把表格复制后粘贴');
+    }
+    try {
+      raw = docxToText(file);
+    } catch (error) {
+      throw new ApiError(400, error instanceof Error ? error.message : 'Word 文件读不出来');
+    }
+  } else if (typeof req.body?.text === 'string') {
+    raw = req.body.text;
+  } else {
+    throw new ApiError(400, '请粘贴名单或选择文件');
+  }
+
+  let imported;
+  try {
+    imported = parseRoster(raw);
+  } catch (error) {
+    throw new ApiError(400, error instanceof Error ? error.message : '名单格式不对');
+  }
+
+  const existing = teamsOf(league.id);
+  const result = transaction(() => {
+    let teamsCreated = 0;
+    let playersCreated = 0;
+    let colorIndex = existing.length;
+    const byName = new Map<string, Team>(existing.map((team) => [team.name, { ...team, players: [...(team.players ?? [])] }]));
+    for (const incoming of imported) {
+      let team = byName.get(incoming.name);
+      if (!team) {
+        const created: Team = {
+          id: randomUUID(),
+          leagueId: league.id,
+          name: incoming.name,
+          short: incoming.short || incoming.name.slice(0, 4),
+          color: TEAM_COLORS[colorIndex % TEAM_COLORS.length],
+          players: [],
+        };
+        colorIndex += 1;
+        insertTeam(created);
+        byName.set(created.name, created);
+        team = created;
+        teamsCreated += 1;
+      }
+      const used = new Set((team.players ?? []).map((player) => player.number).filter(Boolean));
+      for (const player of incoming.players) {
+        if (used.has(player.number)) throw new ApiError(409, `「${team.name}」的号码 ${player.number} 已被使用`);
+        const created = {
+          id: randomUUID(),
+          teamId: team.id,
+          className: player.className,
+          name: player.name,
+          number: player.number,
+          position: '',
+          gender: '' as const,
+          height: '',
+          weight: '',
+        };
+        try {
+          insertPlayer(created);
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('duplicate player number')) {
+            throw new ApiError(409, `「${team.name}」的号码 ${player.number} 已被使用`);
+          }
+          throw error;
+        }
+        used.add(player.number);
+        playersCreated += 1;
+      }
+    }
+    return { teamsCreated, playersCreated, teamsTouched: imported.length };
+  });
+  res.status(201).json(result);
 });
 
 app.post('/api/admin/leagues/:id/teams', (req, res) => {
@@ -338,6 +548,10 @@ app.post('/api/admin/teams/:id/players', (req, res) => {
     className: text(req.body?.className, '班级'),
     name: text(req.body?.name, '姓名'),
     number,
+    position: '',
+    gender: '' as const,
+    height: '',
+    weight: '',
   };
   try {
     insertPlayer(player);

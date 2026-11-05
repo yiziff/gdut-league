@@ -51,12 +51,21 @@ db.exec(`
     token TEXT PRIMARY KEY,
     expires_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS player_sessions (
+    token TEXT PRIMARY KEY,
+    player_id TEXT NOT NULL,
+    expires_at INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS players (
     id TEXT PRIMARY KEY,
     team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
     class_name TEXT NOT NULL,
     name TEXT NOT NULL,
-    number TEXT NOT NULL
+    number TEXT NOT NULL,
+    position TEXT NOT NULL DEFAULT '',
+    gender TEXT NOT NULL DEFAULT '',
+    height TEXT NOT NULL DEFAULT '',
+    weight TEXT NOT NULL DEFAULT ''
   );
   CREATE INDEX IF NOT EXISTS idx_teams_league ON teams(league_id);
   CREATE INDEX IF NOT EXISTS idx_matches_league ON matches(league_id);
@@ -74,6 +83,11 @@ if (!playerColumns.some((column) => column.name === 'class_name')) {
 }
 if (!playerColumns.some((column) => column.name === 'number')) {
   db.exec("ALTER TABLE players ADD COLUMN number TEXT NOT NULL DEFAULT ''");
+}
+for (const column of ['position', 'gender', 'height', 'weight']) {
+  if (!playerColumns.some((item) => item.name === column)) {
+    db.exec(`ALTER TABLE players ADD COLUMN ${column} TEXT NOT NULL DEFAULT ''`);
+  }
 }
 
 db.exec(`
@@ -227,6 +241,25 @@ interface PlayerRow {
   class_name: string;
   name: string;
   number: string;
+  position?: string | null;
+  gender?: string | null;
+  height?: string | null;
+  weight?: string | null;
+}
+
+function toPlayer(row: PlayerRow): Player {
+  const gender = row.gender === 'male' || row.gender === 'female' ? row.gender : '';
+  return {
+    id: row.id,
+    teamId: row.team_id,
+    className: row.class_name,
+    name: row.name,
+    number: row.number,
+    position: row.position ?? '',
+    gender,
+    height: row.height ?? '',
+    weight: row.weight ?? '',
+  };
 }
 
 export function withPlayers(teams: Team[]): Team[] {
@@ -234,26 +267,79 @@ export function withPlayers(teams: Team[]): Team[] {
   const byTeam = new Map<string, Player[]>();
   for (const row of rows) {
     const players = byTeam.get(row.team_id) ?? [];
-    players.push({
-      id: row.id,
-      teamId: row.team_id,
-      className: row.class_name,
-      name: row.name,
-      number: row.number,
-    });
+    players.push(toPlayer(row));
     byTeam.set(row.team_id, players);
   }
   return teams.map((team) => ({ ...team, players: byTeam.get(team.id) ?? [] }));
 }
 
 export function insertPlayer(player: Player): void {
-  db.prepare('INSERT INTO players (id, team_id, class_name, name, number) VALUES (?, ?, ?, ?, ?)').run(
+  db.prepare(
+    'INSERT INTO players (id, team_id, class_name, name, number, position, gender, height, weight) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  ).run(
     player.id,
     player.teamId,
     player.className,
     player.name,
     player.number,
+    player.position || '',
+    player.gender || '',
+    player.height || '',
+    player.weight || '',
   );
+}
+
+export function updatePlayer(player: Player): void {
+  db.prepare(
+    'UPDATE players SET class_name = ?, name = ?, number = ?, position = ?, gender = ?, height = ?, weight = ? WHERE id = ?',
+  ).run(player.className, player.name, player.number, player.position, player.gender, player.height, player.weight, player.id);
+}
+
+export interface PlayerAccount {
+  player: Player;
+  team: Team;
+  league: League;
+}
+
+interface AccountRow extends PlayerRow {
+  team_name: string;
+  team_short: string;
+  team_color: string;
+  league_id: string;
+  league_name: string;
+  league_sport: string;
+  league_season: string;
+}
+
+function toAccount(row: AccountRow): PlayerAccount {
+  return {
+    player: toPlayer(row),
+    team: {
+      id: row.team_id,
+      leagueId: row.league_id,
+      name: row.team_name,
+      short: row.team_short,
+      color: row.team_color,
+    },
+    league: { id: row.league_id, sport: row.league_sport as Sport, name: row.league_name, season: row.league_season },
+  };
+}
+
+const accountSql = `
+  SELECT players.*, teams.name AS team_name, teams.short AS team_short, teams.color AS team_color,
+         teams.league_id AS league_id, leagues.name AS league_name, leagues.sport AS league_sport, leagues.season AS league_season
+  FROM players
+  JOIN teams ON teams.id = players.team_id
+  JOIN leagues ON leagues.id = teams.league_id
+`;
+
+export function findPlayerAccounts(name: string, number: string): PlayerAccount[] {
+  return (db.prepare(`${accountSql} WHERE players.name = ? AND players.number = ? ORDER BY leagues.name, teams.name`).all(name, number) as unknown as AccountRow[]).map(toAccount);
+}
+
+export function getPlayerAccount(id: string): PlayerAccount | undefined {
+  const row = db.prepare(`${accountSql} WHERE players.id = ?`).get(id) as unknown as AccountRow | undefined;
+  return row && toAccount(row);
 }
 
 export function deletePlayer(id: string): boolean {

@@ -8,6 +8,11 @@
   --color-gdut-700: #00489a;
   --color-gdut-800: #063a7a;
   --color-gdut-900: #0a2d5c;
+  --color-player-50: #fff7ed;
+  --color-player-100: #ffedd5;
+  --color-player-500: #f97316;
+  --color-player-600: #ea580c;
+  --color-player-700: #c2410c;
   --font-sans: 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
 }
 

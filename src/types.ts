@@ -17,6 +17,10 @@ export interface Player {
   className: string;
   name: string;
   number: string;
+  position: string;
+  gender: '' | 'male' | 'female';
+  height: string;
+  weight: string;
 }
 
 /** 一场比赛里某名球员的数据。篮球用得分、篮板、助攻；其他项目只用其中对应的项。 */
