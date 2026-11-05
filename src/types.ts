@@ -14,7 +14,9 @@ export interface League {
 export interface Player {
   id: string;
   teamId: string;
+  className: string;
   name: string;
+  number: string;
 }
 
 /** 一场比赛里某名球员的数据。篮球用得分、篮板、助攻；其他项目只用其中对应的项。 */

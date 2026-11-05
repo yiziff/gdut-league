@@ -54,7 +54,9 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS players (
     id TEXT PRIMARY KEY,
     team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-    name TEXT NOT NULL
+    class_name TEXT NOT NULL,
+    name TEXT NOT NULL,
+    number TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_teams_league ON teams(league_id);
   CREATE INDEX IF NOT EXISTS idx_matches_league ON matches(league_id);
@@ -65,6 +67,34 @@ const matchColumns = db.prepare('PRAGMA table_info(matches)').all() as { name: s
 if (!matchColumns.some((column) => column.name === 'lines')) {
   db.exec('ALTER TABLE matches ADD COLUMN lines TEXT');
 }
+
+const playerColumns = db.prepare('PRAGMA table_info(players)').all() as { name: string }[];
+if (!playerColumns.some((column) => column.name === 'class_name')) {
+  db.exec("ALTER TABLE players ADD COLUMN class_name TEXT NOT NULL DEFAULT ''");
+}
+if (!playerColumns.some((column) => column.name === 'number')) {
+  db.exec("ALTER TABLE players ADD COLUMN number TEXT NOT NULL DEFAULT ''");
+}
+
+db.exec(`
+  CREATE TRIGGER IF NOT EXISTS players_unique_number_insert
+  BEFORE INSERT ON players
+  WHEN NEW.number <> '' AND EXISTS (
+    SELECT 1 FROM players WHERE team_id = NEW.team_id AND number = NEW.number
+  )
+  BEGIN
+    SELECT RAISE(ABORT, 'duplicate player number');
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS players_unique_number_update
+  BEFORE UPDATE OF team_id, number ON players
+  WHEN NEW.number <> '' AND EXISTS (
+    SELECT 1 FROM players WHERE team_id = NEW.team_id AND number = NEW.number AND id <> NEW.id
+  )
+  BEGIN
+    SELECT RAISE(ABORT, 'duplicate player number');
+  END;
+`);
 
 export function transaction<T>(fn: () => T): T {
   db.exec('BEGIN');
@@ -194,7 +224,9 @@ export function teamsOf(leagueId: string): Team[] {
 interface PlayerRow {
   id: string;
   team_id: string;
+  class_name: string;
   name: string;
+  number: string;
 }
 
 export function withPlayers(teams: Team[]): Team[] {
@@ -202,14 +234,26 @@ export function withPlayers(teams: Team[]): Team[] {
   const byTeam = new Map<string, Player[]>();
   for (const row of rows) {
     const players = byTeam.get(row.team_id) ?? [];
-    players.push({ id: row.id, teamId: row.team_id, name: row.name });
+    players.push({
+      id: row.id,
+      teamId: row.team_id,
+      className: row.class_name,
+      name: row.name,
+      number: row.number,
+    });
     byTeam.set(row.team_id, players);
   }
   return teams.map((team) => ({ ...team, players: byTeam.get(team.id) ?? [] }));
 }
 
 export function insertPlayer(player: Player): void {
-  db.prepare('INSERT INTO players (id, team_id, name) VALUES (?, ?, ?)').run(player.id, player.teamId, player.name);
+  db.prepare('INSERT INTO players (id, team_id, class_name, name, number) VALUES (?, ?, ?, ?, ?)').run(
+    player.id,
+    player.teamId,
+    player.className,
+    player.name,
+    player.number,
+  );
 }
 
 export function deletePlayer(id: string): boolean {

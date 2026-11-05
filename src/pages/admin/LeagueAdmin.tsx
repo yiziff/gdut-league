@@ -40,6 +40,16 @@ interface MatchForm {
   lines: Record<string, { points: string; rebounds: string; assists: string }>;
 }
 
+interface PlayerDraft {
+  className: string;
+  name: string;
+  number: string;
+}
+
+function blankPlayerDraft(): PlayerDraft {
+  return { className: '', name: '', number: '' };
+}
+
 function todayAt(hour: string): string {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -138,8 +148,10 @@ function LeagueAdminBody() {
   const [division, setDivision] = useState<Division>('men');
   const [startDate, setStartDate] = useState('');
   const [venue, setVenue] = useState('');
-  const [rosterText, setRosterText] = useState('');
-  const [playerDraft, setPlayerDraft] = useState<Record<string, string>>({});
+  const [addingPlayerTo, setAddingPlayerTo] = useState<string | null>(null);
+  const [playerDrafts, setPlayerDrafts] = useState<Record<string, PlayerDraft>>({});
+  const [playerErrors, setPlayerErrors] = useState<Record<string, string>>({});
+  const [savingPlayerFor, setSavingPlayerFor] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
   const [form, setForm] = useState<MatchForm>(blankMatch);
   const [selected, setSelected] = useState<string[]>([]);
@@ -273,25 +285,56 @@ function LeagueAdminBody() {
     });
   }
 
-  async function importRoster(event: FormEvent) {
+  async function addPlayer(event: FormEvent, team: Team) {
     event.preventDefault();
+    const draft = playerDrafts[team.id] ?? blankPlayerDraft();
+    setError('');
     setNotice('');
-    await run(async () => {
-      const result = await api<{ createdTeams: number; addedPlayers: number }>(`/api/admin/leagues/${league.id}/roster`, {
+    setPlayerErrors((current) => ({ ...current, [team.id]: '' }));
+    const conflict = (team.players ?? []).find((player) => player.number === draft.number.trim());
+    if (conflict) {
+      setPlayerErrors((current) => ({
+        ...current,
+        [team.id]: `号码 ${draft.number.trim()} 已被 ${conflict.name} 使用`,
+      }));
+      return;
+    }
+    setSavingPlayerFor(team.id);
+    try {
+      await api(`/api/admin/teams/${team.id}/players`, {
         method: 'POST',
-        body: JSON.stringify({ text: rosterText }),
+        body: JSON.stringify(draft),
       });
-      setRosterText('');
-      setNotice(`新增 ${result.createdTeams} 支队伍，补录 ${result.addedPlayers} 名队员。已有的队伍不会重复创建。`);
-    });
+      await refresh();
+      setPlayerDrafts((current) => ({ ...current, [team.id]: blankPlayerDraft() }));
+      setNotice(`已为「${team.name}」添加 ${draft.name}。`);
+    } catch (err) {
+      setPlayerErrors((current) => ({
+        ...current,
+        [team.id]: err instanceof Error ? err.message : '保存成员失败',
+      }));
+    } finally {
+      setSavingPlayerFor(null);
+    }
   }
 
-  async function addPlayers(teamId: string) {
-    const text = playerDraft[teamId] ?? '';
-    setNotice('');
-    await run(async () => {
-      await api(`/api/admin/teams/${teamId}/players`, { method: 'POST', body: JSON.stringify({ text }) });
-      setPlayerDraft((current) => ({ ...current, [teamId]: '' }));
+  function setPlayerDraft(teamId: string, field: keyof PlayerDraft, value: string) {
+    setPlayerDrafts((current) => ({
+      ...current,
+      [teamId]: {
+        ...(current[teamId] ?? blankPlayerDraft()),
+        [field]: value,
+      },
+    }));
+  }
+
+  function closePlayerForm(teamId: string) {
+    setAddingPlayerTo(null);
+    setPlayerErrors((current) => ({ ...current, [teamId]: '' }));
+    setPlayerDrafts((current) => {
+      const next = { ...current };
+      delete next[teamId];
+      return next;
     });
   }
 
@@ -398,100 +441,213 @@ function LeagueAdminBody() {
 
       <section className="mb-8">
         <h2 className="mb-1 font-semibold">报名</h2>
-        <p className="mb-3 text-sm text-slate-500">可以一次贴一批，也可以以后再补队伍或队员。已经报过名的队伍会保留，只追加新队员。</p>
-        <form onSubmit={(event) => void importRoster(event)} className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
-          <textarea
-            value={rosterText}
-            onChange={(event) => setRosterText(event.target.value)}
-            rows={5}
-            placeholder={'计科2101：张三、李四、王五\n计科2102：赵六\n材料2103'}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-          />
-          <button className="mt-3 rounded-lg bg-gdut-700 px-3 py-1.5 text-sm text-white">导入这批报名</button>
-        </form>
-        <form onSubmit={(event) => void saveTeam(event)} className="mb-3 flex flex-wrap items-end gap-3">
-          <label className="text-sm text-slate-600">
-            全称
-            <input value={teamName} onChange={(event) => setTeamName(event.target.value)} className={inputClass} placeholder="计算机 2101" />
-          </label>
-          <label className="text-sm text-slate-600">
-            简称
-            <input value={teamShort} onChange={(event) => setTeamShort(event.target.value)} className={inputClass} placeholder="2101" />
-          </label>
-          <label className="text-sm text-slate-600">
-            颜色
-            <input type="color" value={teamColor} onChange={(event) => setTeamColor(event.target.value)} className="mt-1 block h-9 w-14" />
-          </label>
-          <button className="rounded-lg bg-gdut-700 px-3 py-1.5 text-sm text-white">{editingTeam ? '保存修改' : '添加队伍'}</button>
-          {editingTeam && (
-            <button
-              type="button"
-              className="text-sm text-slate-500"
-              onClick={() => {
-                setEditingTeam(null);
-                setTeamName('');
-                setTeamShort('');
-              }}
-            >
-              取消
-            </button>
-          )}
-        </form>
-        <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
-          {detail.teams.map((team) => (
-            <li key={team.id} className="px-4 py-3 text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <span className="flex items-center gap-2">
-                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: team.color }} />
-                  {team.name}
-                  <span className="text-slate-400">{team.short}</span>
-                </span>
-                <span className="flex gap-3">
-                  <button type="button" onClick={() => editTeam(team)} className="text-gdut-600">
-                    编辑
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void run(async () => {
-                        if (!window.confirm(`删除「${team.name}」？相关比赛里的位置会变成待定。`)) return;
-                        await api(`/api/admin/teams/${team.id}`, { method: 'DELETE' });
-                      })
-                    }
-                    className="text-red-600"
-                  >
-                    删除
-                  </button>
-                </span>
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                {(team.players ?? []).length === 0 && <span className="text-xs text-slate-400">队员未填</span>}
-                {(team.players ?? []).map((player) => (
-                  <span key={player.id} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs">
-                    {player.name}
+        <p className="mb-3 text-sm text-slate-500">先创建队伍，再在对应队伍中逐个添加成员。每位成员都需要填写班级、姓名和号码。</p>
+
+        <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
+          <h3 className="mb-3 text-sm font-semibold">{editingTeam ? '编辑队伍' : '创建队伍'}</h3>
+          <form onSubmit={(event) => void saveTeam(event)} className="flex flex-wrap items-end gap-3">
+            <label className="text-sm text-slate-600">
+              全称
+              <input
+                value={teamName}
+                onChange={(event) => setTeamName(event.target.value)}
+                className={inputClass}
+                placeholder="计算机学院"
+                required
+              />
+            </label>
+            <label className="text-sm text-slate-600">
+              简称
+              <input value={teamShort} onChange={(event) => setTeamShort(event.target.value)} className={inputClass} placeholder="计算机" />
+            </label>
+            <label className="text-sm text-slate-600">
+              颜色
+              <input type="color" value={teamColor} onChange={(event) => setTeamColor(event.target.value)} className="mt-1 block h-9 w-14" />
+            </label>
+            <button className="rounded-lg bg-gdut-700 px-3 py-1.5 text-sm text-white">{editingTeam ? '保存修改' : '创建队伍'}</button>
+            {editingTeam && (
+              <button
+                type="button"
+                className="text-sm text-slate-500"
+                onClick={() => {
+                  setEditingTeam(null);
+                  setTeamName('');
+                  setTeamShort('');
+                }}
+              >
+                取消
+              </button>
+            )}
+          </form>
+        </div>
+
+        <div className="space-y-3">
+          {detail.teams.map((team) => {
+            const players = team.players ?? [];
+            const draft = playerDrafts[team.id] ?? blankPlayerDraft();
+            const adding = addingPlayerTo === team.id;
+            const savingPlayer = savingPlayerFor === team.id;
+            const numberCounts = players.reduce<Record<string, number>>((counts, player) => {
+              if (player.number) counts[player.number] = (counts[player.number] ?? 0) + 1;
+              return counts;
+            }, {});
+            const duplicateNumbers = Object.keys(numberCounts).filter((number) => numberCounts[number] > 1);
+            return (
+              <article key={team.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                <header className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                  <div>
+                    <div className="flex items-center gap-2 font-medium">
+                      <span className="h-3 w-3 rounded-full" style={{ backgroundColor: team.color }} />
+                      {team.name}
+                      <span className="text-sm font-normal text-slate-400">{team.short}</span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-slate-400">{players.length} 名成员</p>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm">
                     <button
                       type="button"
-                      className="text-slate-400 hover:text-red-600"
-                      onClick={() => void run(() => api(`/api/admin/players/${player.id}`, { method: 'DELETE' }))}
+                      className="font-medium text-gdut-600"
+                      aria-expanded={adding}
+                      onClick={() => {
+                        if (adding) closePlayerForm(team.id);
+                        else setAddingPlayerTo(team.id);
+                      }}
                     >
-                      ×
+                      {adding ? '取消添加' : '+ 添加成员'}
                     </button>
-                  </span>
-                ))}
-                <input
-                  value={playerDraft[team.id] ?? ''}
-                  onChange={(event) => setPlayerDraft((current) => ({ ...current, [team.id]: event.target.value }))}
-                  placeholder="补队员，用顿号分开"
-                  className="w-40 rounded-lg border border-slate-200 px-2 py-1 text-xs"
-                />
-                <button type="button" onClick={() => void addPlayers(team.id)} className="text-xs text-gdut-600">
-                  添加
-                </button>
-              </div>
-            </li>
-          ))}
-          {detail.teams.length === 0 && <li className="px-4 py-6 text-center text-sm text-slate-400">还没有队伍</li>}
-        </ul>
+                    <button type="button" onClick={() => editTeam(team)} className="text-slate-600">
+                      编辑队伍
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void run(async () => {
+                          if (!window.confirm(`删除「${team.name}」？相关比赛里的位置会变成待定。`)) return;
+                          await api(`/api/admin/teams/${team.id}`, { method: 'DELETE' });
+                          if (addingPlayerTo === team.id) setAddingPlayerTo(null);
+                        })
+                      }
+                      className="text-red-600"
+                    >
+                      删除队伍
+                    </button>
+                  </div>
+                </header>
+
+                {players.length === 0 ? (
+                  <p className="border-t border-slate-100 px-4 py-5 text-center text-sm text-slate-400">还没有成员，点击“添加成员”开始录入</p>
+                ) : (
+                  <div className="overflow-x-auto border-t border-slate-100">
+                    {duplicateNumbers.length > 0 && (
+                      <p className="bg-red-50 px-4 py-2 text-sm text-red-700">
+                        号码 {duplicateNumbers.join('、')} 重复，请删除冲突成员；之后同队号码将不能重复。
+                      </p>
+                    )}
+                    <table className="w-full min-w-lg text-sm">
+                      <thead className="bg-slate-50 text-left text-xs text-slate-500">
+                        <tr>
+                          <th className="px-4 py-2 font-medium">班级</th>
+                          <th className="px-4 py-2 font-medium">姓名</th>
+                          <th className="px-4 py-2 font-medium">号码</th>
+                          <th className="px-4 py-2 text-right font-medium">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {players.map((player) => (
+                          <tr
+                            key={player.id}
+                            className={`border-t border-slate-100 ${numberCounts[player.number] > 1 ? 'bg-red-50/50' : ''}`}
+                          >
+                            <td className="px-4 py-2">{player.className || '—'}</td>
+                            <td className="px-4 py-2 font-medium">{player.name}</td>
+                            <td className={`px-4 py-2 tabular-nums ${numberCounts[player.number] > 1 ? 'font-semibold text-red-700' : ''}`}>
+                              {player.number || '—'}
+                              {numberCounts[player.number] > 1 && <span className="ml-2 text-xs font-normal">重复</span>}
+                            </td>
+                            <td className="px-4 py-2 text-right">
+                              <button
+                                type="button"
+                                className="text-red-600"
+                                onClick={() => {
+                                  if (!window.confirm(`删除成员「${player.name}」？`)) return;
+                                  void run(() => api(`/api/admin/players/${player.id}`, { method: 'DELETE' }));
+                                }}
+                              >
+                                删除
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {adding && (
+                  <form onSubmit={(event) => void addPlayer(event, team)} className="border-t border-slate-100 bg-slate-50 p-4">
+                    <p className="mb-3 text-sm font-medium">添加一名成员</p>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <label className="text-sm text-slate-600">
+                        班级
+                        <input
+                          value={draft.className}
+                          onChange={(event) => setPlayerDraft(team.id, 'className', event.target.value)}
+                          className={inputClass}
+                          placeholder="软件工程 1 班"
+                          autoFocus
+                          required
+                        />
+                      </label>
+                      <label className="text-sm text-slate-600">
+                        姓名
+                        <input
+                          value={draft.name}
+                          onChange={(event) => setPlayerDraft(team.id, 'name', event.target.value)}
+                          className={inputClass}
+                          placeholder="张三"
+                          required
+                        />
+                      </label>
+                      <label className="text-sm text-slate-600">
+                        号码
+                        <input
+                          value={draft.number}
+                          onChange={(event) => setPlayerDraft(team.id, 'number', event.target.value)}
+                          className={inputClass}
+                          placeholder="10"
+                          inputMode="numeric"
+                          required
+                        />
+                      </label>
+                    </div>
+                    <div className="mt-3 flex items-center gap-3">
+                      <button
+                        type="submit"
+                        disabled={savingPlayer}
+                        className="rounded-lg bg-gdut-700 px-3 py-1.5 text-sm text-white disabled:cursor-wait disabled:opacity-60"
+                      >
+                        {savingPlayer ? '保存中…' : '保存成员'}
+                      </button>
+                      <button type="button" onClick={() => closePlayerForm(team.id)} className="text-sm text-slate-500">
+                        取消
+                      </button>
+                      {playerErrors[team.id] && (
+                        <p role="alert" className="text-sm text-red-600">
+                          {playerErrors[team.id]}
+                        </p>
+                      )}
+                    </div>
+                  </form>
+                )}
+              </article>
+            );
+          })}
+          {detail.teams.length === 0 && (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
+              还没有队伍，请先创建队伍
+            </div>
+          )}
+        </div>
       </section>
 
       <section className="mb-8">
@@ -875,7 +1031,10 @@ function LineEditor({
         <div className="space-y-2">
           {players.map((player) => (
             <div key={player.id} className="flex flex-wrap items-end gap-2">
-              <span className="w-20 shrink-0 truncate pb-1 text-sm">{player.name}</span>
+              <span className="w-24 shrink-0 truncate pb-1 text-sm">
+                <span className="mr-1 text-slate-400">#{player.number || '—'}</span>
+                {player.name}
+              </span>
               {fields.map((field) => (
                 <label key={field.key} className="text-xs text-slate-500">
                   {field.label}

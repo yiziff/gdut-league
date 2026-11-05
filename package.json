@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k \"node --experimental-sqlite --import tsx server/index.ts\" vite",
+    "dev": "concurrently -k \"NODE_OPTIONS=--experimental-sqlite tsx watch --clear-screen=false server/index.ts\" vite",
     "start": "NODE_ENV=production node --experimental-sqlite --import tsx server/index.ts",
     "build": "tsc --noEmit && tsc -p server/tsconfig.json --noEmit && vite build",
     "preview": "vite preview",

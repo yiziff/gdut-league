@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { planFormat, seedOrder } from './formats';
-import { parsePlayerList, parseRoster } from './roster';
 
 const ids = () => {
   let n = 0;
@@ -75,17 +74,5 @@ describe('planFormat', () => {
   it('uses 待定 when the venue is still unknown', () => {
     const matches = planFormat({ ...base, preset: 'single_elim', bracketSize: 4, venue: '  ' }, ids());
     expect(matches[0].venue).toBe('待定');
-  });
-});
-
-describe('parseRoster', () => {
-  it('accepts teams with or without players', () => {
-    const lines = parseRoster('计科2101：张三、李四 王五\n\n材料2101\n计科2101：张三');
-    expect(lines).toEqual([
-      { name: '计科2101', players: ['张三', '李四', '王五'] },
-      { name: '材料2101', players: [] },
-      { name: '计科2101', players: ['张三'] },
-    ]);
-    expect(parsePlayerList('张三,张三、李四')).toEqual(['张三', '李四']);
   });
 });

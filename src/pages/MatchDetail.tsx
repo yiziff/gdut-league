@@ -108,10 +108,12 @@ function Roster({ title, players }: { title: string; players: Player[] }) {
       {players.length === 0 ? (
         <p className="text-sm text-slate-400">队员名单还没公布</p>
       ) : (
-        <ul className="flex flex-wrap gap-2">
+        <ul className="divide-y divide-slate-100 text-sm">
           {players.map((player) => (
-            <li key={player.id} className="rounded-full bg-slate-100 px-3 py-1 text-sm">
-              {player.name}
+            <li key={player.id} className="grid grid-cols-[3rem_1fr_auto] items-center gap-2 py-2">
+              <span className="tabular-nums text-slate-400">#{player.number || '—'}</span>
+              <span className="font-medium">{player.name}</span>
+              <span className="text-xs text-slate-400">{player.className || '班级未填'}</span>
             </li>
           ))}
         </ul>
@@ -154,7 +156,10 @@ function StatTable({
               const line = lines.get(player.id)!;
               return (
                 <tr key={player.id} className="border-t border-slate-100">
-                  <td className="px-4 py-2">{player.name}</td>
+                  <td className="px-4 py-2">
+                    <span className="mr-2 tabular-nums text-slate-400">#{player.number || '—'}</span>
+                    {player.name}
+                  </td>
                   {fields.map((field) => (
                     <td key={field.key} className="px-3 py-2 text-right tabular-nums">
                       {line[field.key]}

@@ -44,11 +44,35 @@ export default function TeamDetail() {
               {meta.icon} {meta.name} · {league.league.name}
             </p>
           )}
-          <p className="mt-2 text-sm text-slate-600">
-            {(team.players ?? []).length > 0 ? (team.players ?? []).map((player) => player.name).join('、') : '队员名单还没公布'}
-          </p>
+          <p className="mt-2 text-sm text-slate-600">{(team.players ?? []).length} 名队员</p>
         </div>
       </div>
+
+      <h2 className="mb-3 font-semibold">队员名单</h2>
+      {(team.players ?? []).length === 0 ? (
+        <p className="mb-8 rounded-xl border border-dashed border-slate-200 py-6 text-center text-sm text-slate-400">队员名单还没公布</p>
+      ) : (
+        <div className="mb-8 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+          <table className="w-full min-w-md text-sm">
+            <thead className="bg-slate-50 text-left text-slate-500">
+              <tr>
+                <th className="px-4 py-2 font-medium">班级</th>
+                <th className="px-4 py-2 font-medium">姓名</th>
+                <th className="px-4 py-2 font-medium">号码</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(team.players ?? []).map((player) => (
+                <tr key={player.id} className="border-t border-slate-100">
+                  <td className="px-4 py-2">{player.className || '—'}</td>
+                  <td className="px-4 py-2 font-medium">{player.name}</td>
+                  <td className="px-4 py-2 tabular-nums">{player.number || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <h2 className="mb-3 font-semibold">参赛项目</h2>
       {entries.length === 0 && <p className="mb-6 text-sm text-slate-400">还没有比赛</p>}

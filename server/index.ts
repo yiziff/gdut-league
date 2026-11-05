@@ -4,7 +4,6 @@ import { resolve } from 'node:path';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import type { Division, League, Match, MatchStatus, PlayerLine, Score, Side, Sport, Stage, Team } from '../src/types.ts';
 import { planFormat, type FormatPreset } from '../src/lib/formats.ts';
-import { parsePlayerList, parseRoster, shortName } from '../src/lib/roster.ts';
 import { addDays, roundRobinPairings } from '../src/lib/roundRobin.ts';
 import { clearSessionCookie, createSession, destroySession, passwordOk, readCookie, sessionValid, setSessionCookie } from './auth.ts';
 import {
@@ -318,7 +317,6 @@ app.delete('/api/admin/matches/:id', (req, res) => {
 });
 
 const PRESETS: FormatPreset[] = ['round_robin', 'double_round_robin', 'groups_knockout', 'single_elim'];
-const TEAM_COLORS = ['#2563eb', '#dc2626', '#16a34a', '#9333ea', '#ea580c', '#0891b2', '#ca8a04', '#059669', '#4f46e5', '#e11d48'];
 
 function todayString(): string {
   const now = new Date();
@@ -326,60 +324,30 @@ function todayString(): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-app.post('/api/admin/leagues/:id/roster', (req, res) => {
-  const league = requireLeague(req.params.id);
-  const lines = parseRoster(typeof req.body?.text === 'string' ? req.body.text : '');
-  if (lines.length === 0) throw new ApiError(400, '没有读到队伍，每行写一支');
-  const existing = teamsOf(league.id);
-  const byName = new Map(existing.map((team) => [team.name, team]));
-  let createdTeams = 0;
-  let addedPlayers = 0;
-  transaction(() => {
-    for (const line of lines) {
-      let team = byName.get(line.name);
-      if (!team) {
-        team = {
-          id: randomUUID(),
-          leagueId: league.id,
-          name: line.name,
-          short: shortName(line.name),
-          color: TEAM_COLORS[(existing.length + createdTeams) % TEAM_COLORS.length],
-          players: [],
-        };
-        insertTeam(team);
-        byName.set(team.name, team);
-        createdTeams += 1;
-      }
-      const known = new Set((team.players ?? []).map((player) => player.name));
-      for (const name of line.players) {
-        if (known.has(name)) continue;
-        insertPlayer({ id: randomUUID(), teamId: team.id, name });
-        known.add(name);
-        team.players = [...(team.players ?? []), { id: '', teamId: team.id, name }];
-        addedPlayers += 1;
-      }
-    }
-  });
-  res.status(201).json({ createdTeams, addedPlayers });
-});
-
 app.post('/api/admin/teams/:id/players', (req, res) => {
   const team = getTeam(req.params.id);
   if (!team) throw new ApiError(404, '队伍不存在');
-  const names = parsePlayerList(typeof req.body?.text === 'string' ? req.body.text : '');
-  if (names.length === 0) throw new ApiError(400, '请填写队员姓名');
-  const known = new Set((teamsOf(team.leagueId).find((item) => item.id === team.id)?.players ?? []).map((player) => player.name));
-  const created = transaction(() =>
-    names
-      .filter((name) => !known.has(name))
-      .map((name) => {
-        const player = { id: randomUUID(), teamId: team.id, name };
-        insertPlayer(player);
-        known.add(name);
-        return player;
-      }),
-  );
-  res.status(201).json({ created });
+  const number = text(req.body?.number, '号码');
+  const conflict = teamsOf(team.leagueId)
+    .find((item) => item.id === team.id)
+    ?.players?.find((player) => player.number === number);
+  if (conflict) throw new ApiError(409, `号码 ${number} 已被 ${conflict.name} 使用`);
+  const player = {
+    id: randomUUID(),
+    teamId: team.id,
+    className: text(req.body?.className, '班级'),
+    name: text(req.body?.name, '姓名'),
+    number,
+  };
+  try {
+    insertPlayer(player);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('duplicate player number')) {
+      throw new ApiError(409, `号码 ${number} 已被使用`);
+    }
+    throw error;
+  }
+  res.status(201).json(player);
 });
 
 app.delete('/api/admin/players/:id', (req, res) => {
