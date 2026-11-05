@@ -1,0 +1,241 @@
+{
+  "sport": "tabletennis",
+  "matches": [
+    {
+      "id": "tt-m-g01",
+      "sport": "tabletennis",
+      "division": "mixed",
+      "stage": "group",
+      "group": "A",
+      "home": "chem",
+      "away": "fl",
+      "time": "2026-10-20T14:00",
+      "venue": "乒乓球馆",
+      "status": "finished",
+      "score": {
+        "home": 1,
+        "away": 3
+      }
+    },
+    {
+      "id": "tt-m-g02",
+      "sport": "tabletennis",
+      "division": "mixed",
+      "stage": "group",
+      "group": "A",
+      "home": "phy",
+      "away": "law",
+      "time": "2026-10-20T16:00",
+      "venue": "龙洞校区乒乓球室",
+      "status": "finished",
+      "score": {
+        "home": 2,
+        "away": 3
+      }
+    },
+    {
+      "id": "tt-m-g07",
+      "sport": "tabletennis",
+      "division": "mixed",
+      "stage": "group",
+      "group": "B",
+      "home": "arch",
+      "away": "mgmt",
+      "time": "2026-10-21T14:00",
+      "venue": "龙洞校区乒乓球室",
+      "status": "finished",
+      "score": {
+        "home": 2,
+        "away": 3
+      }
+    },
+    {
+      "id": "tt-m-g08",
+      "sport": "tabletennis",
+      "division": "mixed",
+      "stage": "group",
+      "group": "B",
+      "home": "ie",
+      "away": "auto",
+      "time": "2026-10-21T16:00",
+      "venue": "乒乓球馆",
+      "status": "finished",
+      "score": {
+        "home": 2,
+        "away": 3
+      }
+    },
+    {
+      "id": "tt-m-g03",
+      "sport": "tabletennis",
+      "division": "mixed",
+      "stage": "group",
+      "group": "A",
+      "home": "chem",
+      "away": "phy",
+      "time": "2026-10-27T14:00",
+      "venue": "乒乓球馆",
+      "status": "finished",
+      "score": {
+        "home": 3,
+        "away": 0
+      }
+    },
+    {
+      "id": "tt-m-g04",
+      "sport": "tabletennis",
+      "division": "mixed",
+      "stage": "group",
+      "group": "A",
+      "home": "fl",
+      "away": "law",
+      "time": "2026-10-27T16:00",
+      "venue": "龙洞校区乒乓球室",
+      "status": "finished",
+      "score": {
+        "home": 1,
+        "away": 3
+      }
+    },
+    {
+      "id": "tt-m-g09",
+      "sport": "tabletennis",
+      "division": "mixed",
+      "stage": "group",
+      "group": "B",
+      "home": "arch",
+      "away": "ie",
+      "time": "2026-10-28T14:00",
+      "venue": "龙洞校区乒乓球室",
+      "status": "finished",
+      "score": {
+        "home": 2,
+        "away": 3
+      }
+    },
+    {
+      "id": "tt-m-g10",
+      "sport": "tabletennis",
+      "division": "mixed",
+      "stage": "group",
+      "group": "B",
+      "home": "mgmt",
+      "away": "auto",
+      "time": "2026-10-28T16:00",
+      "venue": "乒乓球馆",
+      "status": "finished",
+      "score": {
+        "home": 0,
+        "away": 3
+      }
+    },
+    {
+      "id": "tt-m-g05",
+      "sport": "tabletennis",
+      "division": "mixed",
+      "stage": "group",
+      "group": "A",
+      "home": "chem",
+      "away": "law",
+      "time": "2026-11-03T14:00",
+      "venue": "乒乓球馆",
+      "status": "live",
+      "score": {
+        "home": 1,
+        "away": 1
+      }
+    },
+    {
+      "id": "tt-m-g06",
+      "sport": "tabletennis",
+      "division": "mixed",
+      "stage": "group",
+      "group": "A",
+      "home": "fl",
+      "away": "phy",
+      "time": "2026-11-03T16:00",
+      "venue": "龙洞校区乒乓球室",
+      "status": "scheduled"
+    },
+    {
+      "id": "tt-m-g11",
+      "sport": "tabletennis",
+      "division": "mixed",
+      "stage": "group",
+      "group": "B",
+      "home": "arch",
+      "away": "auto",
+      "time": "2026-11-04T14:00",
+      "venue": "龙洞校区乒乓球室",
+      "status": "scheduled"
+    },
+    {
+      "id": "tt-m-g12",
+      "sport": "tabletennis",
+      "division": "mixed",
+      "stage": "group",
+      "group": "B",
+      "home": "mgmt",
+      "away": "ie",
+      "time": "2026-11-04T16:00",
+      "venue": "乒乓球馆",
+      "status": "scheduled"
+    },
+    {
+      "id": "tt-m-sf1",
+      "sport": "tabletennis",
+      "division": "mixed",
+      "stage": "SF",
+      "home": null,
+      "away": null,
+      "homeSeed": "A1",
+      "awaySeed": "B2",
+      "time": "2026-11-12T14:00",
+      "venue": "乒乓球馆",
+      "status": "scheduled",
+      "nextMatchId": "tt-m-f",
+      "nextSlot": "home",
+      "loserNextMatchId": "tt-m-3rd",
+      "loserNextSlot": "home"
+    },
+    {
+      "id": "tt-m-sf2",
+      "sport": "tabletennis",
+      "division": "mixed",
+      "stage": "SF",
+      "home": null,
+      "away": null,
+      "homeSeed": "B1",
+      "awaySeed": "A2",
+      "time": "2026-11-12T16:00",
+      "venue": "龙洞校区乒乓球室",
+      "status": "scheduled",
+      "nextMatchId": "tt-m-f",
+      "nextSlot": "away",
+      "loserNextMatchId": "tt-m-3rd",
+      "loserNextSlot": "away"
+    },
+    {
+      "id": "tt-m-3rd",
+      "sport": "tabletennis",
+      "division": "mixed",
+      "stage": "3rd",
+      "home": null,
+      "away": null,
+      "time": "2026-11-15T14:00",
+      "venue": "乒乓球馆",
+      "status": "scheduled"
+    },
+    {
+      "id": "tt-m-f",
+      "sport": "tabletennis",
+      "division": "mixed",
+      "stage": "F",
+      "home": null,
+      "away": null,
+      "time": "2026-11-15T16:00",
+      "venue": "龙洞校区乒乓球室",
+      "status": "scheduled"
+    }
+  ]
+}

@@ -1,0 +1,521 @@
+{
+  "sport": "football",
+  "matches": [
+    {
+      "id": "fb-m-g01",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "A",
+      "home": "math",
+      "away": "law",
+      "time": "2026-10-08T14:00",
+      "venue": "东区足球场",
+      "status": "finished",
+      "score": {
+        "home": 0,
+        "away": 0
+      }
+    },
+    {
+      "id": "fb-m-g02",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "A",
+      "home": "phy",
+      "away": "ic",
+      "time": "2026-10-08T16:00",
+      "venue": "西区足球场",
+      "status": "finished",
+      "score": {
+        "home": 1,
+        "away": 0
+      }
+    },
+    {
+      "id": "fb-m-g07",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "B",
+      "home": "chem",
+      "away": "art",
+      "time": "2026-10-09T14:00",
+      "venue": "西区足球场",
+      "status": "finished",
+      "score": {
+        "home": 2,
+        "away": 1
+      }
+    },
+    {
+      "id": "fb-m-g08",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "B",
+      "home": "arch",
+      "away": "mgmt",
+      "time": "2026-10-09T16:00",
+      "venue": "龙洞校区足球场",
+      "status": "finished",
+      "score": {
+        "home": 0,
+        "away": 0
+      }
+    },
+    {
+      "id": "fb-m-g13",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "C",
+      "home": "cs",
+      "away": "civil",
+      "time": "2026-10-10T14:00",
+      "venue": "龙洞校区足球场",
+      "status": "finished",
+      "score": {
+        "home": 2,
+        "away": 1
+      }
+    },
+    {
+      "id": "fb-m-g14",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "C",
+      "home": "me",
+      "away": "bio",
+      "time": "2026-10-10T16:00",
+      "venue": "东区足球场",
+      "status": "finished",
+      "score": {
+        "home": 0,
+        "away": 1
+      }
+    },
+    {
+      "id": "fb-m-g19",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "D",
+      "home": "econ",
+      "away": "env",
+      "time": "2026-10-11T14:00",
+      "venue": "东区足球场",
+      "status": "finished",
+      "score": {
+        "home": 2,
+        "away": 2
+      }
+    },
+    {
+      "id": "fb-m-g20",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "D",
+      "home": "auto",
+      "away": "mse",
+      "time": "2026-10-11T16:00",
+      "venue": "西区足球场",
+      "status": "finished",
+      "score": {
+        "home": 1,
+        "away": 2
+      }
+    },
+    {
+      "id": "fb-m-g03",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "A",
+      "home": "math",
+      "away": "phy",
+      "time": "2026-10-15T14:00",
+      "venue": "东区足球场",
+      "status": "finished",
+      "score": {
+        "home": 0,
+        "away": 1
+      }
+    },
+    {
+      "id": "fb-m-g04",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "A",
+      "home": "law",
+      "away": "ic",
+      "time": "2026-10-15T16:00",
+      "venue": "西区足球场",
+      "status": "finished",
+      "score": {
+        "home": 0,
+        "away": 0
+      }
+    },
+    {
+      "id": "fb-m-g09",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "B",
+      "home": "chem",
+      "away": "arch",
+      "time": "2026-10-16T14:00",
+      "venue": "西区足球场",
+      "status": "finished",
+      "score": {
+        "home": 0,
+        "away": 2
+      }
+    },
+    {
+      "id": "fb-m-g10",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "B",
+      "home": "art",
+      "away": "mgmt",
+      "time": "2026-10-16T16:00",
+      "venue": "龙洞校区足球场",
+      "status": "finished",
+      "score": {
+        "home": 1,
+        "away": 0
+      }
+    },
+    {
+      "id": "fb-m-g15",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "C",
+      "home": "cs",
+      "away": "me",
+      "time": "2026-10-17T14:00",
+      "venue": "龙洞校区足球场",
+      "status": "finished",
+      "score": {
+        "home": 2,
+        "away": 1
+      }
+    },
+    {
+      "id": "fb-m-g16",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "C",
+      "home": "civil",
+      "away": "bio",
+      "time": "2026-10-17T16:00",
+      "venue": "东区足球场",
+      "status": "finished",
+      "score": {
+        "home": 1,
+        "away": 1
+      }
+    },
+    {
+      "id": "fb-m-g21",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "D",
+      "home": "econ",
+      "away": "auto",
+      "time": "2026-10-18T14:00",
+      "venue": "东区足球场",
+      "status": "finished",
+      "score": {
+        "home": 1,
+        "away": 1
+      }
+    },
+    {
+      "id": "fb-m-g22",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "D",
+      "home": "env",
+      "away": "mse",
+      "time": "2026-10-18T16:00",
+      "venue": "西区足球场",
+      "status": "finished",
+      "score": {
+        "home": 1,
+        "away": 0
+      }
+    },
+    {
+      "id": "fb-m-g05",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "A",
+      "home": "math",
+      "away": "ic",
+      "time": "2026-10-22T14:00",
+      "venue": "东区足球场",
+      "status": "finished",
+      "score": {
+        "home": 1,
+        "away": 1
+      }
+    },
+    {
+      "id": "fb-m-g06",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "A",
+      "home": "law",
+      "away": "phy",
+      "time": "2026-10-22T16:00",
+      "venue": "西区足球场",
+      "status": "finished",
+      "score": {
+        "home": 1,
+        "away": 2
+      }
+    },
+    {
+      "id": "fb-m-g11",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "B",
+      "home": "chem",
+      "away": "mgmt",
+      "time": "2026-10-23T14:00",
+      "venue": "西区足球场",
+      "status": "finished",
+      "score": {
+        "home": 1,
+        "away": 1
+      }
+    },
+    {
+      "id": "fb-m-g12",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "B",
+      "home": "art",
+      "away": "arch",
+      "time": "2026-10-23T16:00",
+      "venue": "龙洞校区足球场",
+      "status": "finished",
+      "score": {
+        "home": 2,
+        "away": 2
+      }
+    },
+    {
+      "id": "fb-m-g17",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "C",
+      "home": "cs",
+      "away": "bio",
+      "time": "2026-10-24T14:00",
+      "venue": "龙洞校区足球场",
+      "status": "finished",
+      "score": {
+        "home": 2,
+        "away": 0
+      }
+    },
+    {
+      "id": "fb-m-g18",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "C",
+      "home": "civil",
+      "away": "me",
+      "time": "2026-10-24T16:00",
+      "venue": "东区足球场",
+      "status": "finished",
+      "score": {
+        "home": 2,
+        "away": 1
+      }
+    },
+    {
+      "id": "fb-m-g23",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "D",
+      "home": "econ",
+      "away": "mse",
+      "time": "2026-10-25T14:00",
+      "venue": "东区足球场",
+      "status": "finished",
+      "score": {
+        "home": 0,
+        "away": 1
+      }
+    },
+    {
+      "id": "fb-m-g24",
+      "sport": "football",
+      "division": "men",
+      "stage": "group",
+      "group": "D",
+      "home": "env",
+      "away": "auto",
+      "time": "2026-10-25T16:00",
+      "venue": "西区足球场",
+      "status": "finished",
+      "score": {
+        "home": 0,
+        "away": 1
+      }
+    },
+    {
+      "id": "fb-m-qf1",
+      "sport": "football",
+      "division": "men",
+      "stage": "QF",
+      "home": null,
+      "away": null,
+      "homeSeed": "A1",
+      "awaySeed": "B2",
+      "time": "2026-10-31T14:00",
+      "venue": "东区足球场",
+      "status": "finished",
+      "nextMatchId": "fb-m-sf1",
+      "nextSlot": "home",
+      "score": {
+        "home": 1,
+        "away": 1
+      },
+      "penalties": {
+        "home": 3,
+        "away": 4
+      }
+    },
+    {
+      "id": "fb-m-qf2",
+      "sport": "football",
+      "division": "men",
+      "stage": "QF",
+      "home": null,
+      "away": null,
+      "homeSeed": "C1",
+      "awaySeed": "D2",
+      "time": "2026-10-31T16:00",
+      "venue": "西区足球场",
+      "status": "finished",
+      "nextMatchId": "fb-m-sf1",
+      "nextSlot": "away",
+      "score": {
+        "home": 0,
+        "away": 1
+      }
+    },
+    {
+      "id": "fb-m-qf3",
+      "sport": "football",
+      "division": "men",
+      "stage": "QF",
+      "home": null,
+      "away": null,
+      "homeSeed": "B1",
+      "awaySeed": "A2",
+      "time": "2026-11-01T14:00",
+      "venue": "龙洞校区足球场",
+      "status": "finished",
+      "nextMatchId": "fb-m-sf2",
+      "nextSlot": "home",
+      "score": {
+        "home": 1,
+        "away": 0
+      }
+    },
+    {
+      "id": "fb-m-qf4",
+      "sport": "football",
+      "division": "men",
+      "stage": "QF",
+      "home": null,
+      "away": null,
+      "homeSeed": "D1",
+      "awaySeed": "C2",
+      "time": "2026-11-01T16:00",
+      "venue": "东区足球场",
+      "status": "finished",
+      "nextMatchId": "fb-m-sf2",
+      "nextSlot": "away",
+      "score": {
+        "home": 1,
+        "away": 0
+      }
+    },
+    {
+      "id": "fb-m-sf1",
+      "sport": "football",
+      "division": "men",
+      "stage": "SF",
+      "home": null,
+      "away": null,
+      "time": "2026-11-07T14:00",
+      "venue": "西区足球场",
+      "status": "scheduled",
+      "nextMatchId": "fb-m-f",
+      "nextSlot": "home",
+      "loserNextMatchId": "fb-m-3rd",
+      "loserNextSlot": "home"
+    },
+    {
+      "id": "fb-m-sf2",
+      "sport": "football",
+      "division": "men",
+      "stage": "SF",
+      "home": null,
+      "away": null,
+      "time": "2026-11-07T16:00",
+      "venue": "龙洞校区足球场",
+      "status": "scheduled",
+      "nextMatchId": "fb-m-f",
+      "nextSlot": "away",
+      "loserNextMatchId": "fb-m-3rd",
+      "loserNextSlot": "away"
+    },
+    {
+      "id": "fb-m-3rd",
+      "sport": "football",
+      "division": "men",
+      "stage": "3rd",
+      "home": null,
+      "away": null,
+      "time": "2026-11-14T14:00",
+      "venue": "东区足球场",
+      "status": "scheduled"
+    },
+    {
+      "id": "fb-m-f",
+      "sport": "football",
+      "division": "men",
+      "stage": "F",
+      "home": null,
+      "away": null,
+      "time": "2026-11-14T16:00",
+      "venue": "西区足球场",
+      "status": "scheduled"
+    }
+  ]
+}

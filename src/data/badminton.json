@@ -1,0 +1,269 @@
+{
+  "sport": "badminton",
+  "matches": [
+    {
+      "id": "bd-m-g01",
+      "sport": "badminton",
+      "division": "mixed",
+      "stage": "group",
+      "group": "A",
+      "home": "env",
+      "away": "cs",
+      "time": "2026-10-11T14:00",
+      "venue": "羽毛球馆",
+      "status": "finished",
+      "score": {
+        "home": 0,
+        "away": 3
+      }
+    },
+    {
+      "id": "bd-m-g02",
+      "sport": "badminton",
+      "division": "mixed",
+      "stage": "group",
+      "group": "A",
+      "home": "fl",
+      "away": "law",
+      "time": "2026-10-11T16:00",
+      "venue": "羽毛球馆",
+      "status": "finished",
+      "score": {
+        "home": 1,
+        "away": 3
+      }
+    },
+    {
+      "id": "bd-m-g07",
+      "sport": "badminton",
+      "division": "mixed",
+      "stage": "group",
+      "group": "B",
+      "home": "art",
+      "away": "phy",
+      "time": "2026-10-12T14:00",
+      "venue": "羽毛球馆",
+      "status": "finished",
+      "score": {
+        "home": 2,
+        "away": 3
+      }
+    },
+    {
+      "id": "bd-m-g08",
+      "sport": "badminton",
+      "division": "mixed",
+      "stage": "group",
+      "group": "B",
+      "home": "math",
+      "away": "arch",
+      "time": "2026-10-12T16:00",
+      "venue": "羽毛球馆",
+      "status": "finished",
+      "score": {
+        "home": 3,
+        "away": 2
+      }
+    },
+    {
+      "id": "bd-m-g03",
+      "sport": "badminton",
+      "division": "mixed",
+      "stage": "group",
+      "group": "A",
+      "home": "env",
+      "away": "fl",
+      "time": "2026-10-18T14:00",
+      "venue": "羽毛球馆",
+      "status": "finished",
+      "score": {
+        "home": 3,
+        "away": 1
+      }
+    },
+    {
+      "id": "bd-m-g04",
+      "sport": "badminton",
+      "division": "mixed",
+      "stage": "group",
+      "group": "A",
+      "home": "cs",
+      "away": "law",
+      "time": "2026-10-18T16:00",
+      "venue": "羽毛球馆",
+      "status": "finished",
+      "score": {
+        "home": 3,
+        "away": 1
+      }
+    },
+    {
+      "id": "bd-m-g09",
+      "sport": "badminton",
+      "division": "mixed",
+      "stage": "group",
+      "group": "B",
+      "home": "art",
+      "away": "math",
+      "time": "2026-10-19T14:00",
+      "venue": "羽毛球馆",
+      "status": "finished",
+      "score": {
+        "home": 2,
+        "away": 3
+      }
+    },
+    {
+      "id": "bd-m-g10",
+      "sport": "badminton",
+      "division": "mixed",
+      "stage": "group",
+      "group": "B",
+      "home": "phy",
+      "away": "arch",
+      "time": "2026-10-19T16:00",
+      "venue": "羽毛球馆",
+      "status": "finished",
+      "score": {
+        "home": 3,
+        "away": 0
+      }
+    },
+    {
+      "id": "bd-m-g05",
+      "sport": "badminton",
+      "division": "mixed",
+      "stage": "group",
+      "group": "A",
+      "home": "env",
+      "away": "law",
+      "time": "2026-10-25T14:00",
+      "venue": "羽毛球馆",
+      "status": "finished",
+      "score": {
+        "home": 1,
+        "away": 3
+      }
+    },
+    {
+      "id": "bd-m-g06",
+      "sport": "badminton",
+      "division": "mixed",
+      "stage": "group",
+      "group": "A",
+      "home": "cs",
+      "away": "fl",
+      "time": "2026-10-25T16:00",
+      "venue": "羽毛球馆",
+      "status": "finished",
+      "score": {
+        "home": 3,
+        "away": 0
+      }
+    },
+    {
+      "id": "bd-m-g11",
+      "sport": "badminton",
+      "division": "mixed",
+      "stage": "group",
+      "group": "B",
+      "home": "art",
+      "away": "arch",
+      "time": "2026-10-26T14:00",
+      "venue": "羽毛球馆",
+      "status": "finished",
+      "score": {
+        "home": 1,
+        "away": 3
+      }
+    },
+    {
+      "id": "bd-m-g12",
+      "sport": "badminton",
+      "division": "mixed",
+      "stage": "group",
+      "group": "B",
+      "home": "phy",
+      "away": "math",
+      "time": "2026-10-26T16:00",
+      "venue": "羽毛球馆",
+      "status": "finished",
+      "score": {
+        "home": 2,
+        "away": 3
+      }
+    },
+    {
+      "id": "bd-m-sf1",
+      "sport": "badminton",
+      "division": "mixed",
+      "stage": "SF",
+      "home": null,
+      "away": null,
+      "homeSeed": "A1",
+      "awaySeed": "B2",
+      "time": "2026-11-01T14:00",
+      "venue": "羽毛球馆",
+      "status": "finished",
+      "nextMatchId": "bd-m-f",
+      "nextSlot": "home",
+      "loserNextMatchId": "bd-m-3rd",
+      "loserNextSlot": "home",
+      "score": {
+        "home": 1,
+        "away": 3
+      }
+    },
+    {
+      "id": "bd-m-sf2",
+      "sport": "badminton",
+      "division": "mixed",
+      "stage": "SF",
+      "home": null,
+      "away": null,
+      "homeSeed": "B1",
+      "awaySeed": "A2",
+      "time": "2026-11-01T16:00",
+      "venue": "羽毛球馆",
+      "status": "finished",
+      "nextMatchId": "bd-m-f",
+      "nextSlot": "away",
+      "loserNextMatchId": "bd-m-3rd",
+      "loserNextSlot": "away",
+      "score": {
+        "home": 1,
+        "away": 3
+      }
+    },
+    {
+      "id": "bd-m-3rd",
+      "sport": "badminton",
+      "division": "mixed",
+      "stage": "3rd",
+      "home": null,
+      "away": null,
+      "time": "2026-11-02T14:00",
+      "venue": "羽毛球馆",
+      "status": "finished",
+      "score": {
+        "home": 3,
+        "away": 1
+      }
+    },
+    {
+      "id": "bd-m-f",
+      "sport": "badminton",
+      "division": "mixed",
+      "stage": "F",
+      "home": null,
+      "away": null,
+      "time": "2026-11-02T16:00",
+      "venue": "羽毛球馆",
+      "status": "finished",
+      "score": {
+        "home": 3,
+        "away": 2
+      }
+    }
+  ]
+}

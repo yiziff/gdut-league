@@ -1,0 +1,770 @@
+{
+  "sport": "basketball",
+  "matches": [
+    {
+      "id": "bb-m-g01",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "A",
+      "home": "auto",
+      "away": "env",
+      "time": "2026-10-10T14:00",
+      "venue": "大学城校区体育馆",
+      "status": "finished",
+      "score": {
+        "home": 82,
+        "away": 68
+      }
+    },
+    {
+      "id": "bb-m-g02",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "A",
+      "home": "ie",
+      "away": "art",
+      "time": "2026-10-10T16:00",
+      "venue": "东区风雨球场",
+      "status": "finished",
+      "score": {
+        "home": 69,
+        "away": 68
+      }
+    },
+    {
+      "id": "bb-m-g07",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "B",
+      "home": "me",
+      "away": "law",
+      "time": "2026-10-11T14:00",
+      "venue": "东区风雨球场",
+      "status": "finished",
+      "score": {
+        "home": 82,
+        "away": 80
+      }
+    },
+    {
+      "id": "bb-m-g08",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "B",
+      "home": "mse",
+      "away": "mgmt",
+      "time": "2026-10-11T16:00",
+      "venue": "西区篮球场",
+      "status": "finished",
+      "score": {
+        "home": 81,
+        "away": 68
+      }
+    },
+    {
+      "id": "bb-m-g13",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "C",
+      "home": "econ",
+      "away": "phy",
+      "time": "2026-10-12T14:00",
+      "venue": "西区篮球场",
+      "status": "finished",
+      "score": {
+        "home": 79,
+        "away": 76
+      }
+    },
+    {
+      "id": "bb-m-g14",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "C",
+      "home": "cs",
+      "away": "math",
+      "time": "2026-10-12T16:00",
+      "venue": "大学城校区体育馆",
+      "status": "finished",
+      "score": {
+        "home": 67,
+        "away": 73
+      }
+    },
+    {
+      "id": "bb-m-g19",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "D",
+      "home": "arch",
+      "away": "chem",
+      "time": "2026-10-13T14:00",
+      "venue": "大学城校区体育馆",
+      "status": "finished",
+      "score": {
+        "home": 71,
+        "away": 66
+      }
+    },
+    {
+      "id": "bb-m-g20",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "D",
+      "home": "fl",
+      "away": "bio",
+      "time": "2026-10-13T16:00",
+      "venue": "东区风雨球场",
+      "status": "finished",
+      "score": {
+        "home": 74,
+        "away": 86
+      }
+    },
+    {
+      "id": "bb-w-g01",
+      "sport": "basketball",
+      "division": "women",
+      "stage": "group",
+      "group": "A",
+      "home": "cs",
+      "away": "fl",
+      "time": "2026-10-14T14:00",
+      "venue": "大学城校区体育馆",
+      "status": "finished",
+      "score": {
+        "home": 79,
+        "away": 60
+      }
+    },
+    {
+      "id": "bb-w-g02",
+      "sport": "basketball",
+      "division": "women",
+      "stage": "group",
+      "group": "A",
+      "home": "env",
+      "away": "arch",
+      "time": "2026-10-14T16:00",
+      "venue": "东区风雨球场",
+      "status": "finished",
+      "score": {
+        "home": 77,
+        "away": 74
+      }
+    },
+    {
+      "id": "bb-w-g07",
+      "sport": "basketball",
+      "division": "women",
+      "stage": "group",
+      "group": "B",
+      "home": "econ",
+      "away": "phy",
+      "time": "2026-10-15T14:00",
+      "venue": "东区风雨球场",
+      "status": "finished",
+      "score": {
+        "home": 71,
+        "away": 73
+      }
+    },
+    {
+      "id": "bb-w-g08",
+      "sport": "basketball",
+      "division": "women",
+      "stage": "group",
+      "group": "B",
+      "home": "bio",
+      "away": "law",
+      "time": "2026-10-15T16:00",
+      "venue": "西区篮球场",
+      "status": "finished",
+      "score": {
+        "home": 75,
+        "away": 85
+      }
+    },
+    {
+      "id": "bb-m-g03",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "A",
+      "home": "auto",
+      "away": "ie",
+      "time": "2026-10-17T14:00",
+      "venue": "大学城校区体育馆",
+      "status": "finished",
+      "score": {
+        "home": 78,
+        "away": 69
+      }
+    },
+    {
+      "id": "bb-m-g04",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "A",
+      "home": "env",
+      "away": "art",
+      "time": "2026-10-17T16:00",
+      "venue": "东区风雨球场",
+      "status": "finished",
+      "score": {
+        "home": 72,
+        "away": 63
+      }
+    },
+    {
+      "id": "bb-m-g09",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "B",
+      "home": "me",
+      "away": "mse",
+      "time": "2026-10-18T14:00",
+      "venue": "东区风雨球场",
+      "status": "finished",
+      "score": {
+        "home": 75,
+        "away": 73
+      }
+    },
+    {
+      "id": "bb-m-g10",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "B",
+      "home": "law",
+      "away": "mgmt",
+      "time": "2026-10-18T16:00",
+      "venue": "西区篮球场",
+      "status": "finished",
+      "score": {
+        "home": 85,
+        "away": 68
+      }
+    },
+    {
+      "id": "bb-m-g15",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "C",
+      "home": "econ",
+      "away": "cs",
+      "time": "2026-10-19T14:00",
+      "venue": "西区篮球场",
+      "status": "finished",
+      "score": {
+        "home": 80,
+        "away": 81
+      }
+    },
+    {
+      "id": "bb-m-g16",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "C",
+      "home": "phy",
+      "away": "math",
+      "time": "2026-10-19T16:00",
+      "venue": "大学城校区体育馆",
+      "status": "finished",
+      "score": {
+        "home": 84,
+        "away": 74
+      }
+    },
+    {
+      "id": "bb-m-g21",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "D",
+      "home": "arch",
+      "away": "fl",
+      "time": "2026-10-20T14:00",
+      "venue": "大学城校区体育馆",
+      "status": "finished",
+      "score": {
+        "home": 61,
+        "away": 58
+      }
+    },
+    {
+      "id": "bb-m-g22",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "D",
+      "home": "chem",
+      "away": "bio",
+      "time": "2026-10-20T16:00",
+      "venue": "东区风雨球场",
+      "status": "finished",
+      "score": {
+        "home": 66,
+        "away": 91
+      }
+    },
+    {
+      "id": "bb-w-g03",
+      "sport": "basketball",
+      "division": "women",
+      "stage": "group",
+      "group": "A",
+      "home": "cs",
+      "away": "env",
+      "time": "2026-10-21T14:00",
+      "venue": "大学城校区体育馆",
+      "status": "finished",
+      "score": {
+        "home": 20,
+        "away": 0
+      },
+      "forfeit": "away"
+    },
+    {
+      "id": "bb-w-g04",
+      "sport": "basketball",
+      "division": "women",
+      "stage": "group",
+      "group": "A",
+      "home": "fl",
+      "away": "arch",
+      "time": "2026-10-21T16:00",
+      "venue": "东区风雨球场",
+      "status": "finished",
+      "score": {
+        "home": 69,
+        "away": 74
+      }
+    },
+    {
+      "id": "bb-w-g09",
+      "sport": "basketball",
+      "division": "women",
+      "stage": "group",
+      "group": "B",
+      "home": "econ",
+      "away": "bio",
+      "time": "2026-10-22T14:00",
+      "venue": "东区风雨球场",
+      "status": "finished",
+      "score": {
+        "home": 80,
+        "away": 86
+      }
+    },
+    {
+      "id": "bb-w-g10",
+      "sport": "basketball",
+      "division": "women",
+      "stage": "group",
+      "group": "B",
+      "home": "phy",
+      "away": "law",
+      "time": "2026-10-22T16:00",
+      "venue": "西区篮球场",
+      "status": "finished",
+      "score": {
+        "home": 78,
+        "away": 83
+      }
+    },
+    {
+      "id": "bb-m-g05",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "A",
+      "home": "auto",
+      "away": "art",
+      "time": "2026-10-24T14:00",
+      "venue": "大学城校区体育馆",
+      "status": "finished",
+      "score": {
+        "home": 84,
+        "away": 72
+      }
+    },
+    {
+      "id": "bb-m-g06",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "A",
+      "home": "env",
+      "away": "ie",
+      "time": "2026-10-24T16:00",
+      "venue": "东区风雨球场",
+      "status": "finished",
+      "score": {
+        "home": 77,
+        "away": 74
+      }
+    },
+    {
+      "id": "bb-m-g11",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "B",
+      "home": "me",
+      "away": "mgmt",
+      "time": "2026-10-25T14:00",
+      "venue": "东区风雨球场",
+      "status": "finished",
+      "score": {
+        "home": 73,
+        "away": 65
+      }
+    },
+    {
+      "id": "bb-m-g12",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "B",
+      "home": "law",
+      "away": "mse",
+      "time": "2026-10-25T16:00",
+      "venue": "西区篮球场",
+      "status": "finished",
+      "score": {
+        "home": 70,
+        "away": 87
+      }
+    },
+    {
+      "id": "bb-m-g17",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "C",
+      "home": "econ",
+      "away": "math",
+      "time": "2026-10-26T14:00",
+      "venue": "西区篮球场",
+      "status": "finished",
+      "score": {
+        "home": 80,
+        "away": 74
+      }
+    },
+    {
+      "id": "bb-m-g18",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "C",
+      "home": "phy",
+      "away": "cs",
+      "time": "2026-10-26T16:00",
+      "venue": "大学城校区体育馆",
+      "status": "finished",
+      "score": {
+        "home": 76,
+        "away": 66
+      }
+    },
+    {
+      "id": "bb-m-g23",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "D",
+      "home": "arch",
+      "away": "bio",
+      "time": "2026-10-27T14:00",
+      "venue": "大学城校区体育馆",
+      "status": "finished",
+      "score": {
+        "home": 65,
+        "away": 90
+      }
+    },
+    {
+      "id": "bb-m-g24",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "group",
+      "group": "D",
+      "home": "chem",
+      "away": "fl",
+      "time": "2026-10-27T16:00",
+      "venue": "东区风雨球场",
+      "status": "finished",
+      "score": {
+        "home": 61,
+        "away": 70
+      }
+    },
+    {
+      "id": "bb-w-g05",
+      "sport": "basketball",
+      "division": "women",
+      "stage": "group",
+      "group": "A",
+      "home": "cs",
+      "away": "arch",
+      "time": "2026-10-28T14:00",
+      "venue": "大学城校区体育馆",
+      "status": "finished",
+      "score": {
+        "home": 67,
+        "away": 60
+      }
+    },
+    {
+      "id": "bb-w-g06",
+      "sport": "basketball",
+      "division": "women",
+      "stage": "group",
+      "group": "A",
+      "home": "fl",
+      "away": "env",
+      "time": "2026-10-28T16:00",
+      "venue": "东区风雨球场",
+      "status": "finished",
+      "score": {
+        "home": 71,
+        "away": 69
+      }
+    },
+    {
+      "id": "bb-w-g11",
+      "sport": "basketball",
+      "division": "women",
+      "stage": "group",
+      "group": "B",
+      "home": "econ",
+      "away": "law",
+      "time": "2026-10-29T14:00",
+      "venue": "东区风雨球场",
+      "status": "finished",
+      "score": {
+        "home": 81,
+        "away": 76
+      }
+    },
+    {
+      "id": "bb-w-g12",
+      "sport": "basketball",
+      "division": "women",
+      "stage": "group",
+      "group": "B",
+      "home": "phy",
+      "away": "bio",
+      "time": "2026-10-29T16:00",
+      "venue": "西区篮球场",
+      "status": "finished",
+      "score": {
+        "home": 81,
+        "away": 77
+      }
+    },
+    {
+      "id": "bb-m-qf1",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "QF",
+      "home": null,
+      "away": null,
+      "homeSeed": "A1",
+      "awaySeed": "B2",
+      "time": "2026-11-01T14:00",
+      "venue": "大学城校区体育馆",
+      "status": "finished",
+      "nextMatchId": "bb-m-sf1",
+      "nextSlot": "home",
+      "score": {
+        "home": 76,
+        "away": 66
+      }
+    },
+    {
+      "id": "bb-m-qf2",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "QF",
+      "home": null,
+      "away": null,
+      "homeSeed": "C1",
+      "awaySeed": "D2",
+      "time": "2026-11-01T16:00",
+      "venue": "东区风雨球场",
+      "status": "finished",
+      "nextMatchId": "bb-m-sf1",
+      "nextSlot": "away",
+      "score": {
+        "home": 70,
+        "away": 76
+      }
+    },
+    {
+      "id": "bb-m-qf3",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "QF",
+      "home": null,
+      "away": null,
+      "homeSeed": "B1",
+      "awaySeed": "A2",
+      "time": "2026-11-02T14:00",
+      "venue": "西区篮球场",
+      "status": "finished",
+      "nextMatchId": "bb-m-sf2",
+      "nextSlot": "home",
+      "score": {
+        "home": 73,
+        "away": 76
+      }
+    },
+    {
+      "id": "bb-m-qf4",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "QF",
+      "home": null,
+      "away": null,
+      "homeSeed": "D1",
+      "awaySeed": "C2",
+      "time": "2026-11-02T16:00",
+      "venue": "大学城校区体育馆",
+      "status": "finished",
+      "nextMatchId": "bb-m-sf2",
+      "nextSlot": "away",
+      "score": {
+        "home": 69,
+        "away": 77
+      }
+    },
+    {
+      "id": "bb-m-sf1",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "SF",
+      "home": null,
+      "away": null,
+      "time": "2026-11-03T14:00",
+      "venue": "东区风雨球场",
+      "status": "live",
+      "nextMatchId": "bb-m-f",
+      "nextSlot": "home",
+      "loserNextMatchId": "bb-m-3rd",
+      "loserNextSlot": "home",
+      "score": {
+        "home": 35,
+        "away": 33
+      }
+    },
+    {
+      "id": "bb-m-sf2",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "SF",
+      "home": null,
+      "away": null,
+      "time": "2026-11-03T16:00",
+      "venue": "西区篮球场",
+      "status": "scheduled",
+      "nextMatchId": "bb-m-f",
+      "nextSlot": "away",
+      "loserNextMatchId": "bb-m-3rd",
+      "loserNextSlot": "away"
+    },
+    {
+      "id": "bb-w-sf1",
+      "sport": "basketball",
+      "division": "women",
+      "stage": "SF",
+      "home": null,
+      "away": null,
+      "homeSeed": "A1",
+      "awaySeed": "B2",
+      "time": "2026-11-04T14:00",
+      "venue": "大学城校区体育馆",
+      "status": "scheduled",
+      "nextMatchId": "bb-w-f",
+      "nextSlot": "home",
+      "loserNextMatchId": "bb-w-3rd",
+      "loserNextSlot": "home"
+    },
+    {
+      "id": "bb-w-sf2",
+      "sport": "basketball",
+      "division": "women",
+      "stage": "SF",
+      "home": null,
+      "away": null,
+      "homeSeed": "B1",
+      "awaySeed": "A2",
+      "time": "2026-11-04T16:00",
+      "venue": "东区风雨球场",
+      "status": "scheduled",
+      "nextMatchId": "bb-w-f",
+      "nextSlot": "away",
+      "loserNextMatchId": "bb-w-3rd",
+      "loserNextSlot": "away"
+    },
+    {
+      "id": "bb-m-3rd",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "3rd",
+      "home": null,
+      "away": null,
+      "time": "2026-11-08T14:00",
+      "venue": "大学城校区体育馆",
+      "status": "scheduled"
+    },
+    {
+      "id": "bb-m-f",
+      "sport": "basketball",
+      "division": "men",
+      "stage": "F",
+      "home": null,
+      "away": null,
+      "time": "2026-11-08T16:00",
+      "venue": "东区风雨球场",
+      "status": "scheduled"
+    },
+    {
+      "id": "bb-w-3rd",
+      "sport": "basketball",
+      "division": "women",
+      "stage": "3rd",
+      "home": null,
+      "away": null,
+      "time": "2026-11-09T14:00",
+      "venue": "西区篮球场",
+      "status": "scheduled"
+    },
+    {
+      "id": "bb-w-f",
+      "sport": "basketball",
+      "division": "women",
+      "stage": "F",
+      "home": null,
+      "away": null,
+      "time": "2026-11-09T16:00",
+      "venue": "大学城校区体育馆",
+      "status": "scheduled"
+    }
+  ]
+}
