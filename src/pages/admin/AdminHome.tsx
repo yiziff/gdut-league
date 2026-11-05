@@ -44,34 +44,41 @@ function AdminHomeBody() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">管理端</h1>
-        <button onClick={() => void logout()} className="text-sm text-slate-500 hover:text-slate-800">
+      <div className="mb-8 flex items-end justify-between">
+        <div>
+          <p className="eyebrow mb-2">Operations</p>
+          <h1 className="page-title">赛事管理</h1>
+          <p className="mt-2 text-sm text-slate-500">创建联赛并维护报名、赛制与比赛数据</p>
+        </div>
+        <button onClick={() => void logout()} className="btn-secondary">
           退出登录
         </button>
       </div>
 
-      <form onSubmit={(event) => void create(event)} className="mb-8 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-4">
-        <label className="text-sm text-slate-600">
+      <form onSubmit={(event) => void create(event)} className="surface mb-10 grid gap-4 p-5 sm:grid-cols-4">
+        <div className="sm:col-span-4">
+          <h2 className="section-title">创建联赛</h2>
+        </div>
+        <label className="text-sm font-medium text-slate-700">
           项目
-          <select value={sport} onChange={(event) => setSport(event.target.value as Sport)} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5">
+          <select value={sport} onChange={(event) => setSport(event.target.value as Sport)} className="field mt-1.5 w-full">
             {SPORTS.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.icon} {item.name}
+                {item.name}
               </option>
             ))}
           </select>
         </label>
-        <label className="text-sm text-slate-600 sm:col-span-2">
+        <label className="text-sm font-medium text-slate-700 sm:col-span-2">
           联赛名称
-          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="例如 计算机院内班BA" className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5" />
+          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="例如 计算机院内班BA" className="field mt-1.5 w-full" />
         </label>
-        <label className="text-sm text-slate-600">
+        <label className="text-sm font-medium text-slate-700">
           赛季
-          <input value={season} onChange={(event) => setSeason(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5" />
+          <input value={season} onChange={(event) => setSeason(event.target.value)} className="field mt-1.5 w-full" />
         </label>
         {error && <p className="text-sm text-red-600 sm:col-span-4">{error}</p>}
-        <button type="submit" className="rounded-lg bg-gdut-700 px-4 py-2 text-sm font-semibold text-white sm:col-span-4 sm:w-fit">
+        <button type="submit" className="btn-primary sm:col-span-4 sm:w-fit">
           创建联赛
         </button>
       </form>
@@ -80,15 +87,17 @@ function AdminHomeBody() {
         const own = leagues.filter((league) => league.league.sport === item.id);
         return (
           <section key={item.id} className="mb-8">
-            <h2 className="mb-3 font-semibold">
-              {item.icon} {item.name}
-            </h2>
+            <div className="mb-4 flex items-center gap-3">
+              <h2 className="section-title">{item.name}</h2>
+              <span className="h-px flex-1 bg-slate-200" />
+              <span className="text-xs text-slate-400">{own.length} 个联赛</span>
+            </div>
             {own.length === 0 && <p className="text-sm text-slate-400">还没有联赛</p>}
-            <div className="space-y-2">
+            <div className="space-y-3">
               {own.map((league) => (
-                <div key={league.league.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <div key={league.league.id} className="surface flex flex-wrap items-center justify-between gap-3 px-4 py-4">
                   <div>
-                    <Link to={`/admin/leagues/${league.league.id}`} className="font-semibold hover:text-gdut-600">
+                    <Link to={`/admin/leagues/${league.league.id}`} className="font-semibold text-navy-950 hover:text-gdut-600">
                       {league.league.name}
                     </Link>
                     <p className="text-xs text-slate-400">

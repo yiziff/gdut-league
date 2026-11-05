@@ -24,14 +24,14 @@ function BracketMatch({ match: m, all }: { match: Match; all: Match[] }) {
   );
   const box = (
     <div
-      className={`w-52 overflow-hidden rounded-lg border bg-white text-sm shadow-sm transition hover:border-gdut-500 ${
-        m.status === 'live' ? 'border-red-300' : 'border-slate-200'
+      className={`w-56 overflow-hidden rounded-lg border bg-white text-sm shadow-panel transition hover:border-slate-400 ${
+        m.status === 'live' ? 'border-l-2 border-l-red-500' : 'border-slate-200'
       }`}
     >
       {row('home')}
       <div className="border-t border-slate-100" />
       {row('away')}
-      <div className="flex justify-between bg-slate-50 px-3 py-1 text-[11px] text-slate-400">
+      <div className="flex justify-between border-t border-slate-100 bg-slate-50/80 px-3 py-1.5 text-[11px] text-slate-500">
         <span>
           {formatDate(dateOf(m.time))} {clockOf(m.time)}
         </span>
@@ -52,13 +52,15 @@ const LINE = 'border-slate-300';
 export default function BracketView({ bracket, all }: { bracket: Bracket; all: Match[] }) {
   const { rounds, thirdPlace, champion } = bracket;
   const { teamMap } = useData();
-  if (rounds.length === 0) return <p className="py-12 text-center text-slate-400">暂无淘汰赛安排</p>;
+  if (rounds.length === 0) return <div className="empty-state">暂无淘汰赛安排</div>;
   const height = rounds[0].matches.length * 128;
   const championTeam = champion ? teamMap[champion] : undefined;
 
   return (
-    <div className="overflow-x-auto pb-4">
-      <div className="flex min-w-max gap-8">
+    <div>
+      <p className="mb-3 text-xs text-slate-400 sm:hidden">左右滑动查看完整对阵</p>
+      <div className="overflow-x-auto pb-4">
+        <div className="flex min-w-max gap-8">
         {rounds.map((round, ri) => {
           const isLast = ri === rounds.length - 1;
           const pairs: Match[][] = [];
@@ -67,7 +69,7 @@ export default function BracketView({ bracket, all }: { bracket: Bracket; all: M
           }
           return (
             <div key={round.stage} className="flex flex-col">
-              <h3 className="mb-3 text-center text-sm font-semibold text-slate-500">{STAGE_LABEL[round.stage]}</h3>
+              <h3 className="mb-3 text-center text-xs font-semibold tracking-wide text-slate-500 uppercase">{STAGE_LABEL[round.stage]}</h3>
               <div className="flex flex-col" style={{ height }}>
                 {pairs.map((pair, pi) => (
                   <div key={pi} className="relative flex flex-1 flex-col">
@@ -88,15 +90,17 @@ export default function BracketView({ bracket, all }: { bracket: Bracket; all: M
           );
         })}
         <div className="flex flex-col">
-          <h3 className="mb-3 text-center text-sm font-semibold text-slate-500">冠军</h3>
+          <h3 className="mb-3 text-center text-xs font-semibold tracking-wide text-amber-700 uppercase">冠军</h3>
           <div className="flex items-center" style={{ height }}>
             <div
-              className={`w-44 rounded-xl border-2 p-4 text-center ${
-                championTeam ? 'border-amber-300 bg-amber-50' : 'border-dashed border-slate-200'
+              className={`w-48 rounded-xl border p-5 text-center shadow-panel ${
+                championTeam ? 'border-amber-300 bg-white' : 'border-dashed border-slate-300 bg-white/60'
               }`}
             >
-              <div className="text-3xl">🏆</div>
-              <div className={`mt-2 text-sm font-bold ${championTeam ? 'text-amber-700' : 'text-slate-400'}`}>
+              <p className={`text-[10px] font-semibold tracking-[0.18em] uppercase ${championTeam ? 'text-amber-600' : 'text-slate-400'}`}>
+                Champion
+              </p>
+              <div className={`mt-3 text-sm font-bold ${championTeam ? 'text-navy-950' : 'text-slate-400'}`}>
                 {championTeam ? championTeam.name : '虚位以待'}
               </div>
             </div>
@@ -109,6 +113,7 @@ export default function BracketView({ bracket, all }: { bracket: Bracket; all: M
           <BracketMatch match={thirdPlace} all={all} />
         </div>
       )}
+      </div>
     </div>
   );
 }

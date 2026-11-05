@@ -11,7 +11,7 @@ export default function Standings() {
   const [params, setParams] = useSearchParams();
   const requested = params.get('division') as Division | null;
   const division = requested && divisions.includes(requested) ? requested : divisions[0];
-  if (!division) return <p className="py-12 text-center text-slate-400">还没有小组赛</p>;
+  if (!division) return <div className="empty-state">还没有小组赛</div>;
   const visible = tables.filter((t) => t.division === division);
 
   return (
@@ -22,10 +22,10 @@ export default function Standings() {
           <StandingsTable key={t.group} sport={league.sport} table={t} qualifiers={meta.qualifiers} />
         ))}
       </div>
-      <div className="mt-6 rounded-xl bg-gdut-50 p-4 text-sm text-gdut-900">
-        <p className="mb-1 font-semibold">积分规则</p>
-        <p>{meta.ruleText}</p>
-        <p className="mt-1 text-gdut-700">每组前 {meta.qualifiers} 名（深色序号）晋级淘汰赛。</p>
+      <div className="surface mt-6 border-l-2 border-l-gdut-600 p-5 text-sm text-slate-600">
+        <p className="mb-2 font-semibold text-navy-950">积分规则</p>
+        <p className="leading-6">{meta.ruleText}</p>
+        <p className="mt-2 text-gdut-700">每组前 {meta.qualifiers} 名晋级淘汰赛，表格中以强调色标记。</p>
       </div>
     </div>
   );

@@ -27,46 +27,47 @@ export default function TeamDetail() {
 
   return (
     <div>
-      <Link to="/teams" className="text-sm text-gdut-600 hover:underline">
-        ← 全部队伍
+      <Link to="/teams" className="text-xs font-medium text-slate-500 hover:text-gdut-700">
+        队伍 / 返回列表
       </Link>
-      <div className="mt-3 mb-6 flex items-center gap-4 rounded-2xl bg-white p-5 shadow-sm">
+      <div className="page-masthead mt-4 mb-10 flex flex-wrap items-center gap-5">
         <span
-          className="grid h-16 w-16 shrink-0 place-items-center rounded-xl text-lg font-bold text-white"
+          className="grid h-16 w-16 shrink-0 place-items-center rounded-md text-lg font-bold text-white shadow-lg ring-1 ring-white/20"
           style={{ backgroundColor: team.color }}
         >
           {team.short.slice(0, 2)}
         </span>
-        <div>
-          <h1 className="text-2xl font-bold">{team.name}</h1>
+        <div className="min-w-0 flex-1">
+          <h1 className="page-title">{team.name}</h1>
           {league && meta && (
-            <p className="text-sm text-slate-500">
-              {meta.icon} {meta.name} · {league.league.name}
-            </p>
+            <p className="masthead-copy mt-2 text-sm">{meta.name} · {league.league.name}</p>
           )}
-          <p className="mt-2 text-sm text-slate-600">{(team.players ?? []).length} 名队员</p>
+        </div>
+        <div className="border-l border-white/15 pl-5 text-right">
+          <p className="text-[10px] font-bold tracking-[0.14em] text-slate-400 uppercase">报名队员</p>
+          <p className="mt-1 text-2xl font-bold tabular-nums text-white">{(team.players ?? []).length}</p>
         </div>
       </div>
 
-      <h2 className="mb-3 font-semibold">队员名单</h2>
+      <h2 className="section-title mb-4">队员名单</h2>
       {(team.players ?? []).length === 0 ? (
-        <p className="mb-8 rounded-xl border border-dashed border-slate-200 py-6 text-center text-sm text-slate-400">队员名单还没公布</p>
+        <div className="empty-state mb-8">队员名单还没公布</div>
       ) : (
-        <div className="mb-8 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <div className="surface mb-8 overflow-x-auto">
           <table className="w-full min-w-md text-sm">
-            <thead className="bg-slate-50 text-left text-slate-500">
+            <thead className="bg-slate-50/80 text-left text-xs text-slate-500">
               <tr>
-                <th className="px-4 py-2 font-medium">班级</th>
-                <th className="px-4 py-2 font-medium">姓名</th>
-                <th className="px-4 py-2 font-medium">号码</th>
+                <th className="px-4 py-3 font-medium">班级</th>
+                <th className="px-4 py-3 font-medium">姓名</th>
+                <th className="px-4 py-3 font-medium">号码</th>
               </tr>
             </thead>
             <tbody>
               {(team.players ?? []).map((player) => (
-                <tr key={player.id} className="border-t border-slate-100">
-                  <td className="px-4 py-2">{player.className || '—'}</td>
-                  <td className="px-4 py-2 font-medium">{player.name}</td>
-                  <td className="px-4 py-2 tabular-nums">{player.number || '—'}</td>
+                <tr key={player.id} className="border-t border-slate-100 hover:bg-slate-50">
+                  <td className="px-4 py-3 text-slate-500">{player.className || '—'}</td>
+                  <td className="px-4 py-3 font-medium text-navy-950">{player.name}</td>
+                  <td className="px-4 py-3 font-semibold tabular-nums">{player.number || '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -74,9 +75,9 @@ export default function TeamDetail() {
         </div>
       )}
 
-      <h2 className="mb-3 font-semibold">参赛项目</h2>
+      <h2 className="section-title mb-4">参赛项目</h2>
       {entries.length === 0 && <p className="mb-6 text-sm text-slate-400">还没有比赛</p>}
-      <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {entries.map((entry) => {
           const sport = SPORT_MAP[entry.sport];
           const place = placement(data, entry, team.id);
@@ -84,17 +85,16 @@ export default function TeamDetail() {
             <Link
               key={`${entry.leagueId}-${entry.division}`}
               to={`/${entry.sport}/${entry.leagueId}/standings?division=${entry.division}`}
-              className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-gdut-500"
+              className="surface-interactive p-4"
             >
               <div className="flex items-center justify-between">
-                <span className="font-semibold">
-                  {sport.icon} {entry.leagueName} · {DIVISION_LABEL[entry.division]}
-                </span>
+                <span className="font-semibold text-navy-950">{entry.leagueName} · {DIVISION_LABEL[entry.division]}</span>
                 <span className={`rounded px-1.5 py-0.5 text-xs ${PLACEMENT_STYLE[place] ?? 'bg-slate-100 text-slate-500'}`}>
                   {place}
                 </span>
               </div>
-              <div className="mt-2 text-sm text-slate-500">
+              <p className="mt-1 text-xs font-medium text-gdut-600">{sport.name}</p>
+              <div className="mt-3 text-sm text-slate-500">
                 {entry.group && `小组赛 ${entry.group} 组第 ${entry.rank}/${entry.groupSize} · `}
                 总战绩 {entry.won} 胜{entry.drawn > 0 && ` ${entry.drawn} 平`} {entry.lost} 负
               </div>
@@ -104,9 +104,9 @@ export default function TeamDetail() {
       </div>
 
       {upcoming.length > 0 && (
-        <section className="mb-8">
-          <h2 className="mb-3 font-semibold">即将进行</h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <section className="mb-10">
+          <h2 className="section-title mb-4">即将进行</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {upcoming.map((match) => (
               <MatchCard key={match.id} match={match} showSport showDate />
             ))}
@@ -115,8 +115,8 @@ export default function TeamDetail() {
       )}
       {results.length > 0 && (
         <section>
-          <h2 className="mb-3 font-semibold">比赛结果</h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <h2 className="section-title mb-4">比赛结果</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {results.map((match) => (
               <MatchCard key={match.id} match={match} showSport showDate />
             ))}

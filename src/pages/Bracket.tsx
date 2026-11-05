@@ -10,7 +10,7 @@ export default function Bracket() {
   const navigate = useNavigate();
   const { division } = useParams();
 
-  if (divisions.length === 0) return <p className="py-12 text-center text-slate-400">还没有比赛</p>;
+  if (divisions.length === 0) return <div className="empty-state">还没有比赛</div>;
   if (!division || !divisions.includes(division as Division)) {
     return <Navigate to={`/${league.sport}/${league.id}/bracket/${divisions[0]}`} replace />;
   }

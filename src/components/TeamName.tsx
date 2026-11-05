@@ -17,7 +17,7 @@ export default function TeamName({ teamId, placeholder = '待定', full = false,
   const className = `inline-flex min-w-0 items-center gap-1.5 ${plain ? '' : 'hover:text-gdut-600'} ${bold ? 'font-bold' : ''}`;
   const body = (
     <>
-      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: team.color }} />
+      <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: team.color }} />
       <span className="truncate">{full ? team.name : team.short}</span>
     </>
   );

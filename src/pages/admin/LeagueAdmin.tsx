@@ -126,7 +126,7 @@ function pair(home: string, away: string): { home: number; away: number } | null
   return { home: Number(home), away: Number(away) };
 }
 
-const inputClass = 'mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm';
+const inputClass = 'field mt-1.5 w-full';
 
 const ROSTER_PLACEHOLDER = `计算机学院,计算机
 软件工程1班,张三,10
@@ -458,22 +458,20 @@ function LeagueAdminBody() {
 
   return (
     <div>
-      <Link to="/admin" className="text-sm text-gdut-600 hover:underline">
-        ← 全部联赛
+      <Link to="/admin" className="text-xs font-medium text-slate-500 hover:text-gdut-700">
+        赛事管理 / 返回列表
       </Link>
-      <div className="mt-2 mb-6 flex flex-wrap items-end justify-between gap-3">
+      <div className="mt-4 mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm text-slate-400">
-            {meta.icon} {meta.name}
-          </p>
-          <h1 className="text-2xl font-bold">{detail.league.name}</h1>
+          <p className="eyebrow">{meta.name} · {detail.league.season || '当前赛季'}</p>
+          <h1 className="page-title mt-1">{detail.league.name}</h1>
         </div>
-        <div className="flex gap-3 text-sm">
-          <Link to={`/${detail.league.sport}/${detail.league.id}/schedule`} className="text-gdut-600 hover:underline">
+        <div className="flex flex-wrap gap-2">
+          <Link to={`/${detail.league.sport}/${detail.league.id}/schedule`} className="btn-secondary">
             前台查看
           </Link>
           <button
-            className="text-red-600 hover:underline"
+            className="btn-danger"
             onClick={() => {
               if (!window.confirm(`删除「${detail.league.name}」？`)) return;
               void (async () => {
@@ -491,27 +489,28 @@ function LeagueAdminBody() {
           </button>
         </div>
       </div>
-      {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
-      {notice && <p className="mb-4 rounded-lg bg-gdut-50 px-3 py-2 text-sm text-gdut-800">{notice}</p>}
+      {error && <p className="mb-4 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+      {notice && <p className="mb-4 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{notice}</p>}
 
-      <form onSubmit={(event) => void saveLeague(event)} className="mb-8 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
-        <label className="text-sm text-slate-600">
+      <form onSubmit={(event) => void saveLeague(event)} className="surface mb-10 flex flex-wrap items-end gap-4 p-4">
+        <label className="text-sm font-medium text-slate-700">
           名称
           <input name="name" defaultValue={detail.league.name} key={detail.league.name} className={inputClass} />
         </label>
-        <label className="text-sm text-slate-600">
+        <label className="text-sm font-medium text-slate-700">
           赛季
           <input name="season" defaultValue={detail.league.season} key={detail.league.season} className={inputClass} />
         </label>
-        <button className="rounded-lg bg-slate-800 px-3 py-1.5 text-sm text-white">保存</button>
+        <button className="btn-primary">保存</button>
       </form>
 
-      <section className="mb-8">
-        <h2 className="mb-1 font-semibold">报名</h2>
-        <p className="mb-3 text-sm text-slate-500">可以一次导入整份名单，也可以先创建队伍再逐个添加。每位成员都需要班级、姓名和号码。</p>
+      <section className="mb-10">
+        <p className="data-label mb-1">Registration</p>
+        <h2 className="section-title">报名管理</h2>
+        <p className="mt-2 mb-4 text-sm text-slate-500">可以一次导入整份名单，也可以先创建队伍再逐个添加。每位成员都需要班级、姓名和号码。</p>
 
-        <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
-          <h3 className="mb-1 text-sm font-semibold">一次导入</h3>
+        <div className="surface mb-4 p-4">
+          <h3 className="mb-1 text-sm font-semibold text-navy-950">一次导入</h3>
           <p className="mb-3 text-sm text-slate-500">
             从 Word 或 Excel 复制表格后粘贴。四列依次是队伍、班级、姓名、号码。也可以先写一行队伍名，下面每行写班级、姓名、号码。上传 .docx 会直接导入，.csv 会先放进文本框。
           </p>
@@ -520,18 +519,18 @@ function LeagueAdminBody() {
             onChange={(event) => setRosterText(event.target.value)}
             rows={6}
             placeholder={ROSTER_PLACEHOLDER}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm"
+            className="field w-full font-mono"
           />
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <button
               type="button"
               disabled={importing || !rosterText.trim()}
               onClick={() => void submitRoster({ text: rosterText })}
-              className="rounded-lg bg-gdut-700 px-3 py-1.5 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
             >
               {importing ? '导入中…' : '导入名单'}
             </button>
-            <label className="cursor-pointer rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700">
+            <label className="btn-secondary cursor-pointer">
               选择 Word 或表格
               <input
                 type="file"
@@ -546,8 +545,8 @@ function LeagueAdminBody() {
           </div>
         </div>
 
-        <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
-          <h3 className="mb-3 text-sm font-semibold">{editingTeam ? '编辑队伍' : '创建队伍'}</h3>
+        <div className="surface mb-4 p-4">
+          <h3 className="mb-3 text-sm font-semibold text-navy-950">{editingTeam ? '编辑队伍' : '创建队伍'}</h3>
           <form onSubmit={(event) => void saveTeam(event)} className="flex flex-wrap items-end gap-3">
             <label className="text-sm text-slate-600">
               全称
@@ -567,7 +566,7 @@ function LeagueAdminBody() {
               颜色
               <input type="color" value={teamColor} onChange={(event) => setTeamColor(event.target.value)} className="mt-1 block h-9 w-14" />
             </label>
-            <button className="rounded-lg bg-gdut-700 px-3 py-1.5 text-sm text-white">{editingTeam ? '保存修改' : '创建队伍'}</button>
+            <button className="btn-primary">{editingTeam ? '保存修改' : '创建队伍'}</button>
             {editingTeam && (
               <button
                 type="button"
@@ -596,11 +595,11 @@ function LeagueAdminBody() {
             }, {});
             const duplicateNumbers = Object.keys(numberCounts).filter((number) => numberCounts[number] > 1);
             return (
-              <article key={team.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <article key={team.id} className="surface overflow-hidden">
                 <header className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                   <div>
                     <div className="flex items-center gap-2 font-medium">
-                      <span className="h-3 w-3 rounded-full" style={{ backgroundColor: team.color }} />
+                      <span className="h-4 w-1 rounded-sm" style={{ backgroundColor: team.color }} />
                       {team.name}
                       <span className="text-sm font-normal text-slate-400">{team.short}</span>
                     </div>
@@ -687,8 +686,8 @@ function LeagueAdminBody() {
                 )}
 
                 {adding && (
-                  <form onSubmit={(event) => void addPlayer(event, team)} className="border-t border-slate-100 bg-slate-50 p-4">
-                    <p className="mb-3 text-sm font-medium">添加一名成员</p>
+                  <form onSubmit={(event) => void addPlayer(event, team)} className="border-t border-slate-100 bg-slate-50/80 p-4">
+                    <p className="mb-3 text-sm font-semibold text-navy-950">添加一名成员</p>
                     <div className="grid gap-3 sm:grid-cols-3">
                       <label className="text-sm text-slate-600">
                         班级
@@ -727,7 +726,7 @@ function LeagueAdminBody() {
                       <button
                         type="submit"
                         disabled={savingPlayer}
-                        className="rounded-lg bg-gdut-700 px-3 py-1.5 text-sm text-white disabled:cursor-wait disabled:opacity-60"
+                        className="btn-primary disabled:cursor-wait disabled:opacity-60"
                       >
                         {savingPlayer ? '保存中…' : '保存成员'}
                       </button>
@@ -746,17 +745,18 @@ function LeagueAdminBody() {
             );
           })}
           {detail.teams.length === 0 && (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
+            <div className="empty-state">
               还没有队伍，请先创建队伍
             </div>
           )}
         </div>
       </section>
 
-      <section className="mb-8">
-        <h2 className="mb-1 font-semibold">赛制和对阵</h2>
-        <p className="mb-3 text-sm text-slate-500">先选一种赛制生成初始对阵。报名不齐、场地还没定也可以生成，空着的签位和场地以后再填。下面的比赛表仍可逐场增删。</p>
-        <form onSubmit={(event) => void generate(event)} className="rounded-xl border border-slate-200 bg-white p-4">
+      <section className="mb-10">
+        <p className="data-label mb-1">Competition format</p>
+        <h2 className="section-title">赛制和对阵</h2>
+        <p className="mt-2 mb-4 text-sm text-slate-500">先选一种赛制生成初始对阵。报名不齐、场地还没定也可以生成，空着的签位和场地以后再填。下面的比赛表仍可逐场增删。</p>
+        <form onSubmit={(event) => void generate(event)} className="surface p-4">
           <div className="mb-3 grid gap-2 sm:grid-cols-2">
             {(
               [
@@ -766,10 +766,10 @@ function LeagueAdminBody() {
                 ['single_elim', '单败淘汰', '按 4、8 或 16 签排对阵，签位可以先空着'],
               ] as [FormatPreset, string, string][]
             ).map(([value, label, help]) => (
-              <label key={value} className={`rounded-lg border px-3 py-2 text-sm ${preset === value ? 'border-gdut-700 bg-gdut-50' : 'border-slate-200'}`}>
+              <label key={value} className={`rounded-lg border px-3 py-2 text-sm ${preset === value ? 'border-navy-950 bg-navy-950 text-white' : 'border-slate-200'}`}>
                 <input type="radio" name="preset" className="mr-2" checked={preset === value} onChange={() => setPreset(value)} />
                 <span className="font-medium">{label}</span>
-                <span className="mt-0.5 block pl-5 text-xs text-slate-500">{help}</span>
+                <span className={`mt-0.5 block pl-5 text-xs ${preset === value ? 'text-slate-300' : 'text-slate-500'}`}>{help}</span>
               </label>
             ))}
           </div>
@@ -846,15 +846,16 @@ function LeagueAdminBody() {
               默认场地
               <input value={venue} onChange={(event) => setVenue(event.target.value)} className={inputClass} placeholder="可以先空着" />
             </label>
-            <button className="rounded-lg bg-gdut-700 px-3 py-1.5 text-sm text-white">生成对阵</button>
+            <button className="btn-primary">生成对阵</button>
           </div>
           <p className="mt-2 text-xs text-slate-400">同一轮的比赛从 14:00 起排，每轮间隔 7 天。勾选顺序会决定种子和分组。这个组别已经有比赛时，再生成会先清掉旧的，不会往后追加。</p>
         </form>
       </section>
 
       <section>
-        <h2 className="mb-3 font-semibold">逐场调整</h2>
-        <form onSubmit={(event) => void saveMatch(event)} className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
+        <p className="data-label mb-1">Match operations</p>
+        <h2 className="section-title mb-4">逐场调整</h2>
+        <form onSubmit={(event) => void saveMatch(event)} className="surface mb-4 p-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className="text-sm text-slate-600">
               组别
@@ -1031,7 +1032,7 @@ function LeagueAdminBody() {
             </div>
           </details>
           <div className="mt-4 flex gap-3">
-            <button className="rounded-lg bg-gdut-700 px-4 py-1.5 text-sm font-semibold text-white">{form.id ? '保存修改' : '添加比赛'}</button>
+            <button className="btn-primary">{form.id ? '保存修改' : '添加比赛'}</button>
             {form.id && (
               <button type="button" className="text-sm text-slate-500" onClick={() => setForm(blankMatch())}>
                 取消编辑
@@ -1055,11 +1056,11 @@ function LeagueAdminBody() {
             </button>
           </div>
         )}
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <div className="surface overflow-x-auto">
           <table className="w-full text-sm">
             <tbody>
               {detail.matches.map((match) => (
-                <tr key={match.id} className="border-t border-slate-100">
+                <tr key={match.id} className="border-t border-slate-100 hover:bg-slate-50">
                   <td className="w-8 px-3 py-2">
                     <input
                       type="checkbox"
@@ -1126,8 +1127,8 @@ function LineEditor({
   onChange: (playerId: string, key: 'points' | 'rebounds' | 'assists', value: string) => void;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 p-3">
-      <p className="mb-2 text-sm font-medium">{teamName}</p>
+    <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+      <p className="mb-2 text-sm font-semibold text-navy-950">{teamName}</p>
       {players.length === 0 ? (
         <p className="text-xs text-slate-400">还没有队员。先到上面的报名里加上。</p>
       ) : (

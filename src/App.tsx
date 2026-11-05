@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router';
 import Layout from './components/Layout';
 import LeagueLayout from './components/LeagueLayout';
 import Home from './pages/Home';
+import Events from './pages/Events';
 import SportLeagues from './pages/SportLeagues';
 import Schedule from './pages/Schedule';
 import MatchDetail from './pages/MatchDetail';
@@ -33,6 +34,7 @@ export default function App() {
       </Route>
       <Route element={<Layout />}>
         <Route index element={<Home />} />
+        <Route path="events" element={<Events />} />
         <Route path="teams" element={<Teams />} />
         <Route path="teams/:id" element={<TeamDetail />} />
         <Route path="admin" element={<AdminHome />} />

@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
+import MatchCard from '../../components/MatchCard';
 import { useData } from '../../data/store';
-import { clockOf, dateOf, formatDate, todayString } from '../../lib/format';
-import { STAGE_LABEL } from '../../sports';
-import type { Match } from '../../types';
+import { dateOf, formatDate, todayString } from '../../lib/format';
 import { usePlayerSession } from './session';
 
 function shiftDate(date: string, days: number): string {
@@ -24,12 +23,11 @@ function weekOf(date: string): string[] {
 const WEEK = ['一', '二', '三', '四', '五', '六', '日'];
 
 export default function PlayerMatches() {
-  const { leagues, teamMap, allMatches } = useData();
+  const { allMatches } = useData();
   const { profile } = usePlayerSession();
   const [scope, setScope] = useState<'all' | 'mine'>('all');
   const [day, setDay] = useState(todayString());
   const days = useMemo(() => weekOf(day), [day]);
-  const teamName = (id: string | null) => (id && teamMap[id]?.name) || '待定';
 
   const visible = allMatches.filter((match) => {
     if (dateOf(match.time) !== day) return false;
@@ -39,81 +37,52 @@ export default function PlayerMatches() {
 
   return (
     <div>
-      <div className="mb-3 flex max-w-md rounded-full bg-white p-1 text-sm">
-        <button type="button" onClick={() => setScope('all')} className={`flex-1 rounded-full py-1.5 ${scope === 'all' ? 'bg-player-600 font-semibold text-white' : 'text-slate-500'}`}>
+      <p className="eyebrow mb-2">Fixtures</p>
+      <h1 className="page-title mb-6">比赛日程</h1>
+
+      <div className="surface mb-4 flex max-w-sm p-1 text-sm">
+        <button type="button" onClick={() => setScope('all')} className={`flex-1 rounded-md py-2 ${scope === 'all' ? 'bg-navy-950 font-semibold text-white' : 'text-slate-500 hover:text-navy-950'}`}>
           全部
         </button>
-        <button type="button" onClick={() => setScope('mine')} className={`flex-1 rounded-full py-1.5 ${scope === 'mine' ? 'bg-player-600 font-semibold text-white' : 'text-slate-500'}`}>
+        <button type="button" onClick={() => setScope('mine')} className={`flex-1 rounded-md py-2 ${scope === 'mine' ? 'bg-navy-950 font-semibold text-white' : 'text-slate-500 hover:text-navy-950'}`}>
           我的
         </button>
       </div>
 
       <div className="mb-3 flex items-center justify-between text-sm">
-        <button type="button" onClick={() => setDay(shiftDate(day, -7))} className="text-player-700">
+        <button type="button" onClick={() => setDay(shiftDate(day, -7))} className="font-medium text-gdut-700">
           上一周
         </button>
-        <button type="button" onClick={() => setDay(todayString())} className="font-medium">
+        <button type="button" onClick={() => setDay(todayString())} className="font-semibold text-navy-950">
           {day.slice(0, 7).replace('-', '年')}月
         </button>
-        <button type="button" onClick={() => setDay(shiftDate(day, 7))} className="text-player-700">
+        <button type="button" onClick={() => setDay(shiftDate(day, 7))} className="font-medium text-gdut-700">
           下一周
         </button>
       </div>
-      <div className="mb-4 grid grid-cols-7 gap-1 text-center text-xs">
+      <div className="surface mb-6 grid grid-cols-7 gap-1 p-2 text-center text-xs">
         {days.map((date, index) => (
-          <button key={date} type="button" onClick={() => setDay(date)} className={`rounded-xl py-2 ${date === day ? 'bg-player-600 text-white' : 'bg-white text-slate-500'}`}>
+          <button key={date} type="button" onClick={() => setDay(date)} className={`rounded-lg py-2 ${date === day ? 'bg-gdut-700 text-white' : 'text-slate-500 hover:bg-slate-50'}`}>
             <span className="block text-base font-semibold">{Number(date.slice(8))}</span>
             <span>{date === todayString() ? '今天' : WEEK[index]}</span>
           </button>
         ))}
       </div>
 
-      <h2 className="mb-2 text-sm font-semibold">{formatDate(day)}</h2>
+      <h2 className="mb-3 text-sm font-semibold text-navy-950">{formatDate(day)}</h2>
       {scope === 'mine' && !profile && (
-        <p className="rounded-xl bg-white px-4 py-6 text-center text-sm text-slate-500">
+        <div className="empty-state">
           登录后才能看自己队伍的比赛。{' '}
-          <Link to="/player/login" className="font-medium text-player-700">
+          <Link to="/player/login" className="font-medium text-gdut-700">
             去登录
           </Link>
-        </p>
+        </div>
       )}
-      {(scope === 'all' || profile) && visible.length === 0 && <p className="py-8 text-center text-sm text-slate-400">这天没有比赛。</p>}
-      <div className="grid gap-2 lg:grid-cols-2">
+      {(scope === 'all' || profile) && visible.length === 0 && <div className="empty-state">这天没有比赛。</div>}
+      <div className="grid gap-4 lg:grid-cols-2">
         {(scope === 'all' || profile) &&
-          visible.map((match) => (
-            <MatchRow key={match.id} match={match} leagueName={leagues.find((item) => item.league.id === match.leagueId)?.league.name ?? ''} teamName={teamName} />
-          ))}
+          visible.map((match) => <MatchCard key={match.id} match={match} showSport />)}
       </div>
     </div>
-  );
-}
-
-function MatchRow({ match, leagueName, teamName }: { match: Match; leagueName: string; teamName: (id: string | null) => string }) {
-  const league = match.leagueId;
-  const started = match.status !== 'scheduled' && match.score;
-  return (
-    <Link to={league ? `/${match.sport}/${league}/matches/${match.id}` : '/player/matches'} className="block rounded-xl border border-player-100 bg-white px-4 py-3">
-      {leagueName && <p className="mb-1 text-xs text-slate-400">{leagueName}</p>}
-      <div className="flex items-center gap-3">
-        <div className="w-12 shrink-0 text-sm">
-          <p className="font-semibold">{clockOf(match.time)}</p>
-          <p className="text-xs text-slate-400">{STAGE_LABEL[match.stage]}</p>
-        </div>
-        <div className="min-w-0 flex-1 text-sm">
-          <p className="truncate font-medium">{teamName(match.home)}</p>
-          <p className="truncate font-medium">{teamName(match.away)}</p>
-        </div>
-        <div className="text-right text-sm">
-          {started ? (
-            <>
-              <p className="font-semibold tabular-nums">{match.score?.home}</p>
-              <p className="font-semibold tabular-nums">{match.score?.away}</p>
-            </>
-          ) : (
-            <span className="text-xs text-slate-400">比赛前瞻</span>
-          )}
-        </div>
-      </div>
-    </Link>
   );
 }

@@ -58,17 +58,18 @@ export default function Schedule() {
 
   return (
     <div>
-      <FilterBar filters={filters} />
-      {grouped.length === 0 && <p className="py-12 text-center text-slate-400">没有符合条件的比赛</p>}
-      <div className="space-y-8">
+      <FilterBar filters={filters} onClear={() => setParams({}, { replace: true })} />
+      {grouped.length === 0 && <div className="empty-state">没有符合条件的比赛</div>}
+      <div className="space-y-10">
         {grouped.map(([date, list]) => (
           <section key={date} id={`d-${date}`}>
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-600">
-              {formatDate(date)}
-              {date === today && <span className="rounded bg-gdut-700 px-1.5 py-0.5 text-xs text-white">今天</span>}
-              <span className="font-normal text-slate-400">{list.length} 场</span>
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mb-4 flex items-center gap-3">
+              <h2 className="font-semibold text-navy-950">{formatDate(date)}</h2>
+              {date === today && <span className="rounded border border-gdut-100 bg-gdut-50 px-2 py-0.5 text-xs font-semibold text-gdut-700">今天</span>}
+              <span className="text-xs text-slate-400">{list.length} 场</span>
+              <span className="h-px flex-1 bg-slate-200" />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {list.map((m) => (
                 <MatchCard key={m.id} match={m} />
               ))}

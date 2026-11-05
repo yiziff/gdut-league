@@ -33,24 +33,24 @@ export default function MatchDetail() {
 
   return (
     <div>
-      <Link to={`/${league.sport}/${league.id}/schedule`} className="text-sm text-gdut-600 hover:underline">
-        ← 赛程
+      <Link to={`/${league.sport}/${league.id}/schedule`} className="text-xs font-medium text-slate-500 hover:text-gdut-700">
+        赛程 / 返回列表
       </Link>
-      <div className="mt-3 mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div className="mt-4 mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm text-slate-500">
+          <p className="eyebrow">
             {DIVISION_LABEL[match.division]} · {stage}
           </p>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-2 text-sm text-slate-500">
             {formatDate(dateOf(match.time))} {clockOf(match.time)} · {match.venue || '场地待定'}
           </p>
         </div>
         <StatusBadge status={match.status} />
       </div>
 
-      <div className="mb-6 grid items-center gap-3 rounded-2xl bg-white p-5 shadow-sm sm:grid-cols-[1fr_auto_1fr]">
+      <div className="hero-panel mb-8 grid items-center gap-5 p-6 sm:grid-cols-[1fr_auto_1fr] sm:p-9">
         <TeamHeading team={home.team} name={home.label} align="left" />
-        <div className="text-center text-3xl font-bold tabular-nums">
+        <div className="text-center text-3xl font-bold tracking-tight tabular-nums text-white sm:text-5xl">
           {started ? (
             <span>
               {match.score!.home}
@@ -58,7 +58,7 @@ export default function MatchDetail() {
               {match.score!.away}
             </span>
           ) : (
-            <span className="text-lg font-medium text-slate-400">未开始</span>
+            <span className="text-sm font-semibold tracking-[0.18em] text-slate-300">未开始</span>
           )}
         </div>
         <TeamHeading team={away.team} name={away.label} align="right" />
@@ -70,10 +70,11 @@ export default function MatchDetail() {
       </div>
 
       {match.status === 'finished' && (
-        <section className="mt-8">
-          <h2 className="mb-3 font-semibold">球员数据</h2>
+        <section className="mt-10">
+          <p className="data-label mb-1">Player stats</p>
+          <h2 className="section-title mb-4">球员数据</h2>
           {home.recorded.length === 0 && away.recorded.length === 0 ? (
-            <p className="text-sm text-slate-400">这场还没有录入球员数据。</p>
+            <div className="empty-state">这场还没有录入球员数据。</div>
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
               <StatTable title={home.label} players={home.players} lines={lines} fields={fields} />
@@ -89,13 +90,13 @@ export default function MatchDetail() {
 function TeamHeading({ team, name, align }: { team?: Team; name: string; align: 'left' | 'right' }) {
   return (
     <div className={`flex items-center gap-2 ${align === 'right' ? 'sm:flex-row-reverse sm:text-right' : ''}`}>
-      <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: team?.color ?? '#cbd5e1' }} />
+      <span className="h-4 w-1 shrink-0 rounded-sm" style={{ backgroundColor: team?.color ?? '#cbd5e1' }} />
       {team ? (
-        <Link to={`/teams/${team.id}`} className="text-lg font-bold hover:text-gdut-600">
+        <Link to={`/teams/${team.id}`} className="text-lg font-bold text-white hover:text-blue-200 sm:text-xl">
           {name}
         </Link>
       ) : (
-        <span className="text-lg font-bold text-slate-400">{name}</span>
+        <span className="text-lg font-bold text-slate-300">{name}</span>
       )}
     </div>
   );
@@ -103,16 +104,16 @@ function TeamHeading({ team, name, align }: { team?: Team; name: string; align: 
 
 function Roster({ title, players }: { title: string; players: Player[] }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4">
-      <h2 className="mb-2 font-semibold">{title} · 队员</h2>
+    <section className="surface p-4 sm:p-5">
+      <h2 className="mb-3 font-semibold text-navy-950">{title} · 队员</h2>
       {players.length === 0 ? (
         <p className="text-sm text-slate-400">队员名单还没公布</p>
       ) : (
         <ul className="divide-y divide-slate-100 text-sm">
           {players.map((player) => (
-            <li key={player.id} className="grid grid-cols-[3rem_1fr_auto] items-center gap-2 py-2">
+            <li key={player.id} className="grid grid-cols-[3rem_1fr_auto] items-center gap-2 py-2.5">
               <span className="tabular-nums text-slate-400">#{player.number || '—'}</span>
-              <span className="font-medium">{player.name}</span>
+              <span className="font-medium text-navy-950">{player.name}</span>
               <span className="text-xs text-slate-400">{player.className || '班级未填'}</span>
             </li>
           ))}
@@ -135,14 +136,14 @@ function StatTable({
 }) {
   const rows = players.filter((player) => lines.has(player.id));
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-      <h3 className="border-b border-slate-100 px-4 py-3 font-semibold">{title}</h3>
+    <section className="surface overflow-hidden">
+      <h3 className="border-b border-slate-100 px-4 py-3 font-semibold text-navy-950">{title}</h3>
       {rows.length === 0 ? (
         <p className="px-4 py-6 text-sm text-slate-400">没有录入</p>
       ) : (
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-slate-400">
+            <tr className="bg-slate-50/80 text-left text-xs text-slate-500">
               <th className="px-4 py-2 font-medium">球员</th>
               {fields.map((field) => (
                 <th key={field.key} className="px-3 py-2 text-right font-medium">
@@ -155,8 +156,8 @@ function StatTable({
             {rows.map((player) => {
               const line = lines.get(player.id)!;
               return (
-                <tr key={player.id} className="border-t border-slate-100">
-                  <td className="px-4 py-2">
+                <tr key={player.id} className="border-t border-slate-100 hover:bg-slate-50">
+                  <td className="px-4 py-2.5 font-medium text-navy-950">
                     <span className="mr-2 tabular-nums text-slate-400">#{player.number || '—'}</span>
                     {player.name}
                   </td>

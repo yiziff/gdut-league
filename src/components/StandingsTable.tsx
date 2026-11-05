@@ -52,53 +52,53 @@ interface Props {
 export default function StandingsTable({ sport, table, qualifiers }: Props) {
   const columns = COLUMNS[sport];
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-2">
-        <h3 className="font-semibold">{table.group} 组</h3>
-        <span className={`text-xs ${table.complete ? 'text-gdut-600' : 'text-amber-600'}`}>
+    <div className="surface overflow-hidden">
+      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+        <h3 className="font-semibold text-navy-950">{table.group} 组</h3>
+        <span className={`text-xs font-medium ${table.complete ? 'text-gdut-700' : 'text-amber-700'}`}>
           {table.complete ? '小组赛已结束' : '小组赛进行中'}
         </span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="text-xs text-slate-400">
+          <thead className="bg-slate-50/80 text-xs text-slate-500">
             <tr>
-              <th className="w-10 py-2 pl-4 text-left font-normal">#</th>
-              <th className="py-2 text-left font-normal">队伍</th>
-              <th className="px-2 py-2 font-normal">场</th>
-              {columns.map((c) => (
-                <th key={c.label} className="px-2 py-2 font-normal whitespace-nowrap">
+              <th className="w-10 py-2.5 pl-4 text-left font-medium">#</th>
+              <th className="py-2.5 text-left font-medium">队伍</th>
+              <th className="px-2 py-2.5 font-medium">场</th>
+              {columns.map((c, index) => (
+                <th
+                  key={c.label}
+                  className={`px-2 py-2.5 font-medium whitespace-nowrap ${index >= 2 ? 'hidden sm:table-cell' : ''}`}
+                >
                   {c.label}
                 </th>
               ))}
-              <th className="px-4 py-2 font-normal">积分</th>
+              <th className="px-4 py-2.5 font-medium">积分</th>
             </tr>
           </thead>
           <tbody>
             {table.rows.map((r, i) => {
               const qualified = i < qualifiers;
               return (
-                <tr key={r.teamId} className="border-t border-slate-100">
-                  <td className="py-2 pl-4">
-                    <span
-                      className={`grid h-5 w-5 place-items-center rounded text-xs ${
-                        qualified ? 'bg-gdut-700 text-white' : 'text-slate-400'
-                      }`}
-                    >
-                      {i + 1}
-                    </span>
+                <tr key={r.teamId} className={`border-t border-slate-100 transition hover:bg-slate-50 ${qualified ? 'bg-gdut-50/35' : ''}`}>
+                  <td className={`py-3 pl-4 font-semibold tabular-nums ${qualified ? 'border-l-2 border-gdut-600 text-gdut-700' : 'text-slate-400'}`}>
+                    {i + 1}
                   </td>
-                  <td className="max-w-40 py-2">
+                  <td className="max-w-40 py-3">
                     <TeamName teamId={r.teamId} />
                     {r.forfeits > 0 && <span className="ml-1 text-xs text-red-500">弃权 {r.forfeits}</span>}
                   </td>
-                  <td className="px-2 py-2 text-center tabular-nums">{r.played}</td>
-                  {columns.map((c) => (
-                    <td key={c.label} className="px-2 py-2 text-center tabular-nums whitespace-nowrap">
+                  <td className="px-2 py-3 text-center tabular-nums">{r.played}</td>
+                  {columns.map((c, index) => (
+                    <td
+                      key={c.label}
+                      className={`px-2 py-3 text-center tabular-nums whitespace-nowrap ${index >= 2 ? 'hidden sm:table-cell' : ''}`}
+                    >
                       {c.value(r)}
                     </td>
                   ))}
-                  <td className="px-4 py-2 text-center font-bold tabular-nums">{r.points}</td>
+                  <td className="px-4 py-3 text-center font-bold tabular-nums text-navy-950">{r.points}</td>
                 </tr>
               );
             })}

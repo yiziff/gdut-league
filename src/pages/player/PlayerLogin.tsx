@@ -49,20 +49,20 @@ export default function PlayerLogin() {
   }
 
   return (
-    <form onSubmit={submit} className="mx-auto max-w-md overflow-hidden rounded-2xl border border-player-100 bg-white shadow-sm">
-      <div className="bg-player-600 px-5 py-5 text-white">
-        <p className="text-xs text-player-100">球员端</p>
-        <h1 className="text-xl font-bold">球员登录</h1>
+    <form onSubmit={submit} className="surface mx-auto max-w-md overflow-hidden">
+      <div className="border-b border-slate-100 px-5 py-5">
+        <p className="text-xs font-semibold tracking-[0.16em] text-player-600 uppercase">Player center</p>
+        <h1 className="mt-1 text-xl font-bold text-navy-950">球员登录</h1>
       </div>
-      <div className="space-y-3 p-5">
+      <div className="space-y-4 p-5">
         <p className="text-sm text-slate-500">用报名时的姓名和号码登录。还没有名单的话，先去报名。</p>
-        <label className="block text-sm text-slate-600">
+        <label className="block text-sm font-medium text-slate-700">
           姓名
-          <input value={name} onChange={(event) => setName(event.target.value)} className="mt-1 w-full rounded-lg border border-player-100 px-3 py-2 outline-none focus:border-player-500" required />
+          <input value={name} onChange={(event) => setName(event.target.value)} className="field mt-1.5 w-full" required />
         </label>
-        <label className="block text-sm text-slate-600">
+        <label className="block text-sm font-medium text-slate-700">
           号码
-          <input value={number} onChange={(event) => setNumber(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded-lg border border-player-100 px-3 py-2 outline-none focus:border-player-500" required />
+          <input value={number} onChange={(event) => setNumber(event.target.value)} inputMode="numeric" className="field mt-1.5 w-full" required />
         </label>
         {error && (
           <p className="text-sm text-red-600">
@@ -70,7 +70,7 @@ export default function PlayerLogin() {
             {error.includes('报名') && (
               <>
                 {' '}
-                <Link to="/player/join" className="font-medium text-player-700 underline">
+                <Link to="/player/join" className="font-medium text-gdut-700 underline">
                   去报名
                 </Link>
               </>
@@ -86,7 +86,7 @@ export default function PlayerLogin() {
                 type="button"
                 disabled={pending}
                 onClick={() => void login(choice.playerId)}
-                className="block w-full rounded-lg border border-player-100 px-3 py-2 text-left text-sm"
+                className="surface-interactive block w-full px-3 py-2.5 text-left text-sm"
               >
                 <span className="font-medium">{choice.teamName}</span>
                 <span className="mt-0.5 block text-xs text-slate-400">
@@ -96,10 +96,10 @@ export default function PlayerLogin() {
             ))}
           </div>
         )}
-        <button type="submit" disabled={pending} className="w-full rounded-lg bg-player-600 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
+        <button type="submit" disabled={pending} className="btn-primary w-full justify-center disabled:opacity-60">
           {pending ? '登录中…' : '登录'}
         </button>
-        <Link to="/player/join" className="block text-center text-sm text-player-700">
+        <Link to="/player/join" className="block text-center text-sm font-medium text-gdut-700">
           我还没报名
         </Link>
       </div>
