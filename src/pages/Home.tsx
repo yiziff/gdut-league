@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { useData } from '../data/store';
-import { SPORTS } from '../sports';
+import { SPORTS, SPORT_MAP } from '../sports';
 import { clockOf, dateOf, formatDate, todayString } from '../lib/format';
 import MatchCard from '../components/MatchCard';
+import type { Match } from '../types';
 
 function Section({
   eyebrow,
@@ -30,89 +31,102 @@ function Section({
   );
 }
 
+function FocusMatch({ match, label }: { match: Match; label: string }) {
+  const { leagues, teamMap } = useData();
+  const league = leagues.find((item) => item.league.id === match.leagueId)?.league;
+  const meta = SPORT_MAP[match.sport];
+  const hasScore = match.status !== 'scheduled' && match.score;
+  const path = match.leagueId ? `/${match.sport}/${match.leagueId}/matches/${match.id}` : '/events';
+
+  return (
+    <Link
+      to={path}
+      className="w-[17rem] shrink-0 rounded-lg border border-white/15 bg-white p-4 text-ink shadow-lg shadow-black/10 transition hover:-translate-y-0.5 hover:border-blue-200 sm:w-[19rem] lg:min-w-[17rem] lg:flex-1"
+    >
+      <div className="flex items-center justify-between gap-3 text-xs">
+        <span className="truncate font-medium text-slate-500">
+          <span className="mr-1.5" aria-hidden="true">{meta.icon}</span>
+          {league?.name ?? meta.name}
+        </span>
+        <span className={`shrink-0 font-semibold ${match.status === 'live' ? 'text-red-600' : match.status === 'finished' ? 'text-slate-500' : 'text-gdut-700'}`}>
+          {label}
+        </span>
+      </div>
+      <div className="mt-4 space-y-2.5">
+        {(['home', 'away'] as const).map((side) => {
+          const team = match[side] ? teamMap[match[side]!] : undefined;
+          return (
+            <div key={side} className="flex min-h-7 items-center justify-between gap-4">
+              <span className={`flex min-w-0 items-center gap-2 ${!team ? 'text-slate-400 italic' : 'font-semibold text-navy-950'}`}>
+                <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: team?.color ?? '#cbd5e1' }} />
+                <span className="truncate">{team?.short ?? '待定'}</span>
+              </span>
+              <span className={`text-2xl font-bold tabular-nums ${match.status === 'live' ? 'text-red-600' : 'text-navy-950'}`}>
+                {hasScore ? match.score![side] : '—'}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
+        <span className="shrink-0">{formatDate(dateOf(match.time))} {clockOf(match.time)}</span>
+        <span className="truncate text-right">{match.venue || '场地待定'}</span>
+      </div>
+    </Link>
+  );
+}
+
 export default function Home() {
-  const { leagues, teamMap, allMatches } = useData();
+  const { leagues, allMatches } = useData();
   const today = todayString();
   const todays = allMatches.filter((match) => dateOf(match.time) === today);
   const upcoming = allMatches.filter((match) => match.status === 'scheduled' && dateOf(match.time) > today).slice(0, 6);
   const results = allMatches.filter((match) => match.status === 'finished' && dateOf(match.time) < today).slice(-6).reverse();
-  const live = allMatches.filter((match) => match.status === 'live').length;
-  const featured = allMatches.find((match) => match.status === 'live') ?? todays.find((match) => match.status === 'scheduled') ?? upcoming[0];
-  const featuredLeague = leagues.find((item) => item.league.id === featured?.leagueId);
-  const teamLabel = (id: string | null) => (id ? teamMap[id]?.short ?? teamMap[id]?.name ?? '待定' : '待定');
+  const liveMatches = allMatches.filter((match) => match.status === 'live');
+  const latestResult = [...allMatches]
+    .filter((match) => match.status === 'finished')
+    .sort((a, b) => b.time.localeCompare(a.time))[0];
+  const nextFixture = [...allMatches]
+    .filter((match) => match.status === 'scheduled')
+    .sort((a, b) => a.time.localeCompare(b.time))[0];
+  const focusMatches = liveMatches.length > 0
+    ? liveMatches
+    : [latestResult, nextFixture].filter((match): match is Match => Boolean(match));
 
   return (
     <div>
-      <section className="hero-panel mb-12">
-        <span className="absolute top-0 left-0 h-1 w-32 bg-gdut-500" aria-hidden="true" />
-        <div className="grid lg:grid-cols-[1.25fr_0.75fr]">
-          <div className="p-6 sm:p-9 lg:p-12">
-            <p className="text-[11px] font-bold tracking-[0.22em] text-blue-200 uppercase">GDUT Official Competition Center</p>
-            <h1 className="mt-5 max-w-3xl text-4xl leading-tight font-bold tracking-[-0.045em] sm:text-5xl lg:text-[3.5rem]">
-              2026 秋季
-              <span className="block text-slate-300">校园球类联赛</span>
-            </h1>
-            <p className="mt-5 max-w-xl text-sm leading-7 text-slate-300 sm:text-base">
-              集中查看校内五大球类项目的赛程、实时赛果、积分排名与淘汰赛进程。
+      <section className="hero-panel mb-10">
+        <span className={`absolute top-0 left-0 h-1 w-32 ${liveMatches.length > 0 ? 'bg-red-500' : 'bg-gdut-500'}`} aria-hidden="true" />
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
+          <div>
+            <p className="flex items-center gap-2 text-[10px] font-bold tracking-[0.18em] text-slate-400 uppercase">
+              {liveMatches.length > 0 && <span className="h-2 w-2 rounded-full bg-red-500 ring-4 ring-red-500/15" />}
+              Game center
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link to="/events" className="inline-flex items-center rounded-md bg-white px-5 py-2.5 text-sm font-semibold text-navy-950 shadow-lg shadow-black/10 transition hover:-translate-y-px hover:bg-blue-50">
-                查看全部赛事 <span className="ml-2 text-gdut-600">→</span>
-              </Link>
-              <Link to="/teams" className="inline-flex items-center rounded-md border border-white/25 px-5 py-2.5 text-sm font-semibold text-white transition hover:border-white/40 hover:bg-white/10">
-                浏览参赛队伍
-              </Link>
-            </div>
-            <dl className="mt-10 grid grid-cols-2 border-t border-white/15 pt-6 sm:grid-cols-4">
-              {[
-                ['项目', SPORTS.length],
-                ['联赛', leagues.length],
-                ['队伍', Object.keys(teamMap).length],
-                ['比赛', allMatches.length],
-              ].map(([label, value]) => (
-                <div key={label} className="border-l border-white/10 px-4 first:border-l-0 first:pl-0 sm:first:pl-0">
-                  <dt className="text-[10px] font-bold tracking-[0.14em] text-slate-400 uppercase">{label}</dt>
-                  <dd className="mt-1.5 text-2xl font-bold tracking-tight tabular-nums">{value}</dd>
-                </div>
-              ))}
-            </dl>
+            <h1 className="mt-1 text-xl font-bold tracking-[-0.025em] text-white">
+              {liveMatches.length > 0 ? '正在进行' : '比赛焦点'}
+            </h1>
           </div>
-
-          <div className="border-t border-white/10 bg-navy-900/55 p-6 sm:p-9 lg:border-t-0 lg:border-l lg:p-10">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold tracking-[0.14em] text-slate-400 uppercase">
-                {featured?.status === 'live' ? 'Live now' : 'Next fixture'}
-              </p>
-              {live > 0 && <span className="text-xs font-semibold text-red-300">{live} 场进行中</span>}
-            </div>
-            {featured ? (
-              <Link
-                to={`/${featured.sport}/${featured.leagueId}/matches/${featured.id}`}
-                className="mt-5 block rounded-[10px] border border-white/15 bg-white p-5 text-ink shadow-2xl shadow-black/15 transition hover:-translate-y-0.5 hover:border-blue-200"
-              >
-                <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
-                  <span className="truncate">{featuredLeague?.league.name ?? SPORTS.find((item) => item.id === featured.sport)?.name}</span>
-                  <span>{featured.status === 'live' ? '进行中' : formatDate(dateOf(featured.time))}</span>
-                </div>
-                <div className="mt-6 space-y-4">
-                  {(['home', 'away'] as const).map((side) => (
-                    <div key={side} className="flex items-center justify-between gap-4">
-                      <span className="font-semibold text-navy-950">{teamLabel(featured[side])}</span>
-                      <span className="text-2xl font-bold tabular-nums text-navy-950">
-                        {featured.score ? featured.score[side] : '—'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-500">
-                  <span>{clockOf(featured.time)}</span>
-                  <span className="truncate">{featured.venue}</span>
-                </div>
-              </Link>
-            ) : (
-              <div className="mt-5 rounded-xl border border-white/15 px-5 py-12 text-center text-sm text-slate-400">暂无待进行比赛</div>
-            )}
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-slate-400">
+              {liveMatches.length > 0 ? `${liveMatches.length} 场比赛进行中` : '最近赛果与下一场比赛'}
+            </span>
+            <Link to="/events" className="text-xs font-semibold text-blue-200 hover:text-white">
+              全部赛事 →
+            </Link>
           </div>
+        </header>
+        <div className="flex gap-3 overflow-x-auto p-3 sm:p-4 [scrollbar-width:none]">
+          {focusMatches.map((match) => (
+            <FocusMatch
+              key={match.id}
+              match={match}
+              label={match.status === 'live' ? '进行中' : match.status === 'finished' ? '最近赛果' : '下一场'}
+            />
+          ))}
+          {focusMatches.length === 0 && (
+            <div className="w-full px-5 py-8 text-center text-sm text-slate-400">暂无比赛安排</div>
+          )}
         </div>
       </section>
 
