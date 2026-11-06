@@ -9,6 +9,8 @@ export interface League {
   sport: Sport;
   name: string;
   season: string;
+  /** 创建时上传的标志，站内路径。没有则为空字符串 */
+  logo?: string;
 }
 
 export interface Player {

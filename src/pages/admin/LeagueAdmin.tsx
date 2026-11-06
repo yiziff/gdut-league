@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { planFormat, type FormatPreset } from '../../lib/formats';
+import { readLogoFile } from '../../lib/logoFile';
 import { DIVISION_LABEL, DIVISION_ORDER, SPORT_MAP, STAGE_LABEL } from '../../sports';
 import { useDataState } from '../../data/store';
 import type { Division, League, Match, MatchStatus, Player, Side, Stage, Team } from '../../types';
@@ -179,6 +180,7 @@ function LeagueAdminBody() {
   const [playerErrors, setPlayerErrors] = useState<Record<string, string>>({});
   const [savingPlayerFor, setSavingPlayerFor] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
+  const [logoDraft, setLogoDraft] = useState<string | null>(null);
   const [rosterText, setRosterText] = useState('');
   const [importing, setImporting] = useState(false);
   const [form, setForm] = useState<MatchForm>(blankMatch);
@@ -228,12 +230,18 @@ function LeagueAdminBody() {
   async function saveLeague(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    await run(() =>
-      api(`/api/admin/leagues/${league.id}`, {
+    const body: { name: FormDataEntryValue | null; season: FormDataEntryValue | null; logo?: string } = {
+      name: data.get('name'),
+      season: data.get('season'),
+    };
+    if (logoDraft !== null) body.logo = logoDraft;
+    await run(async () => {
+      await api(`/api/admin/leagues/${league.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ name: data.get('name'), season: data.get('season') }),
-      }),
-    );
+        body: JSON.stringify(body),
+      });
+      setLogoDraft(null);
+    });
   }
 
   async function saveTeam(event: FormEvent) {
@@ -501,6 +509,31 @@ function LeagueAdminBody() {
           赛季
           <input name="season" defaultValue={detail.league.season} key={detail.league.season} className={inputClass} />
         </label>
+        <label className="text-sm font-medium text-slate-700">
+          Logo
+          <span className="mt-1.5 flex items-center gap-3">
+            {(logoDraft ?? league.logo) ? (
+              <img src={logoDraft ?? league.logo} alt="" className="h-12 w-12 rounded-lg object-cover" />
+            ) : null}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="text-sm text-slate-600"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                void readLogoFile(file)
+                  .then(setLogoDraft)
+                  .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Logo 无法读取'));
+              }}
+            />
+            {(logoDraft ?? league.logo) ? (
+              <button type="button" className="text-xs font-semibold text-slate-500 hover:text-navy-900" onClick={() => setLogoDraft('')}>
+                移除
+              </button>
+            ) : null}
+          </span>
+        </label>
         <button className="btn-primary">保存</button>
       </form>
 
@@ -766,7 +799,7 @@ function LeagueAdminBody() {
                 ['single_elim', '单败淘汰', '按 4、8 或 16 签排对阵，签位可以先空着'],
               ] as [FormatPreset, string, string][]
             ).map(([value, label, help]) => (
-              <label key={value} className={`rounded-lg border px-3 py-2 text-sm ${preset === value ? 'border-navy-950 bg-navy-950 text-white' : 'border-slate-200'}`}>
+              <label key={value} className={`rounded-lg border px-3 py-2 text-sm ${preset === value ? 'border-gdut-800 bg-gdut-800 text-white' : 'border-slate-200'}`}>
                 <input type="radio" name="preset" className="mr-2" checked={preset === value} onChange={() => setPreset(value)} />
                 <span className="font-medium">{label}</span>
                 <span className={`mt-0.5 block pl-5 text-xs ${preset === value ? 'text-slate-300' : 'text-slate-500'}`}>{help}</span>

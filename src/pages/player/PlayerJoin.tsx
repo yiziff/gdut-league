@@ -92,7 +92,7 @@ export default function PlayerJoin() {
         <legend>性别</legend>
         <div className="mt-1 flex gap-2">
           {(['male', 'female'] as const).map((value) => (
-            <label key={value} className={`flex-1 rounded-lg border px-3 py-2 text-center ${gender === value ? 'border-navy-950 bg-navy-950 text-white' : 'border-slate-200 bg-white'}`}>
+            <label key={value} className={`flex-1 rounded-lg border px-3 py-2 text-center ${gender === value ? 'border-gdut-700 bg-gdut-700 text-white' : 'border-slate-200 bg-white'}`}>
               <input type="radio" name="gender" className="mr-1" checked={gender === value} onChange={() => setGender(value)} />
               {value === 'male' ? '男' : '女'}
             </label>

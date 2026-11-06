@@ -32,7 +32,7 @@ export default function Events() {
             type="button"
             onClick={() => setFilter('all')}
             className={`border-b-2 pb-3 text-sm font-semibold transition ${
-              filter === 'all' ? 'border-gdut-600 text-navy-950' : 'border-transparent text-slate-500 hover:text-navy-900'
+              filter === 'all' ? 'border-[#e08a3c] text-[#9a3e14]' : 'border-transparent text-slate-500 hover:text-[#9a3e14]'
             }`}
           >
             全部赛事
@@ -44,11 +44,10 @@ export default function Events() {
               <button
                 key={sport.id}
                 type="button"
+                data-sport={sport.id}
                 onClick={() => setFilter(sport.id)}
                 className={`border-b-2 pb-3 text-sm font-semibold transition ${
-                  filter === sport.id
-                    ? 'border-gdut-600 text-navy-950'
-                    : 'border-transparent text-slate-500 hover:text-navy-900'
+                  filter === sport.id ? 'tone-tab-active' : 'border-transparent text-slate-500 hover:text-navy-900'
                 }`}
               >
                 <span className="mr-1.5" aria-hidden="true">{sport.icon}</span>
@@ -64,7 +63,7 @@ export default function Events() {
         <div className="empty-state">这个项目暂时没有联赛</div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {visible.map((item, index) => {
+          {visible.map((item) => {
             const meta = SPORTS.find((sport) => sport.id === item.league.sport)!;
             const finished = item.matches.filter((match) => match.status === 'finished').length;
             const progress = item.matches.length > 0 ? Math.round((finished / item.matches.length) * 100) : 0;
@@ -72,50 +71,43 @@ export default function Events() {
               <Link
                 key={item.league.id}
                 to={`/${item.league.sport}/${item.league.id}/schedule`}
-                className="surface-interactive group relative flex min-h-60 flex-col overflow-hidden p-5"
+                data-sport={meta.id}
+                data-watermark={meta.name}
+                className="league-card min-h-60"
               >
-                <span className="absolute top-0 left-0 h-0.5 w-full origin-left scale-x-0 bg-gdut-600 transition group-hover:scale-x-100" />
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <span
-                      className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-gdut-100 bg-gdut-50 text-2xl shadow-sm"
-                      aria-hidden="true"
-                    >
-                      {meta.icon}
+                    <span className="sport-chip" aria-hidden="true">
+                      {meta.avatar ? <img src={meta.avatar} alt="" loading="lazy" /> : meta.icon}
                     </span>
                     <span>
-                      <span className="block text-base font-bold text-navy-950">{meta.name}</span>
-                      <span className="mt-0.5 block text-[10px] font-bold tracking-[0.14em] text-gdut-600 uppercase">Sport</span>
+                      <span className="sport-name block">{meta.name}</span>
+                      <span className="sport-en mt-1.5 block">{meta.en}</span>
                     </span>
                   </div>
-                  <span className="flex items-center gap-3 text-xs text-slate-400">
-                    {item.league.season || '当前赛季'}
-                    <span className="font-bold tracking-[0.12em] text-slate-300">0{index + 1}</span>
-                  </span>
+                  <span className="tone-muted text-xs">{item.league.season || '当前赛季'}</span>
                 </div>
-                <h2 className="mt-7 text-xl font-bold tracking-[-0.025em] text-navy-950 transition group-hover:text-gdut-700">
-                  {item.league.name}
-                </h2>
+                <h2 className="league-title mt-7">{item.league.name}</h2>
                 <div className="mt-auto pt-8">
-                  <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
+                  <div className="tone-muted mb-2 flex items-center justify-between text-xs">
                     <span>赛事进度</span>
-                    <span className="font-semibold tabular-nums text-slate-700">{progress}%</span>
+                    <span className="tone-value font-semibold tabular-nums">{progress}%</span>
                   </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full rounded-full bg-gdut-600" style={{ width: `${progress}%` }} />
+                  <div className="tone-track">
+                    <div className="tone-fill" style={{ width: `${progress}%` }} />
                   </div>
-                  <div className="mt-4 grid grid-cols-3 border-t border-slate-100 pt-4 text-sm">
+                  <div className="tone-divider mt-4 grid grid-cols-3 border-t pt-4 text-sm">
                     <div>
-                      <p className="data-label">队伍</p>
-                      <p className="mt-1 font-semibold tabular-nums text-navy-950">{item.teams.length}</p>
+                      <p className="tone-label">队伍</p>
+                      <p className="tone-value mt-1 font-semibold tabular-nums">{item.teams.length}</p>
                     </div>
                     <div>
-                      <p className="data-label">比赛</p>
-                      <p className="mt-1 font-semibold tabular-nums text-navy-950">{item.matches.length}</p>
+                      <p className="tone-label">比赛</p>
+                      <p className="tone-value mt-1 font-semibold tabular-nums">{item.matches.length}</p>
                     </div>
                     <div>
-                      <p className="data-label">已完成</p>
-                      <p className="mt-1 font-semibold tabular-nums text-navy-950">{finished}</p>
+                      <p className="tone-label">已完成</p>
+                      <p className="tone-value mt-1 font-semibold tabular-nums">{finished}</p>
                     </div>
                   </div>
                 </div>

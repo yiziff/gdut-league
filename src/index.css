@@ -1,5 +1,19 @@
 @import 'tailwindcss';
 
+/* 站酷庆科黄油体（OFL），仅子集化了「篮足排羽毛乒乓球」几个字 */
+@font-face {
+  font-family: 'Sport Display';
+  src: url('/fonts/zcool-qingke-sports.woff2') format('woff2');
+  font-display: swap;
+}
+
+/* 站酷快乐体（OFL），标题用：篮足排羽毛乒乓球赛事 */
+@font-face {
+  font-family: 'Sport Poster';
+  src: url('/fonts/zcool-kuaile-poster.woff2') format('woff2');
+  font-display: swap;
+}
+
 @theme {
   --color-canvas: #eef2f5;
   --color-ink: #111f31;
@@ -9,13 +23,13 @@
   --color-navy-800: #102f4b;
   --color-navy-900: #0a233a;
   --color-navy-950: #07192b;
-  --color-gdut-50: #eef5ff;
-  --color-gdut-100: #d9e8ff;
-  --color-gdut-500: #1d63c4;
-  --color-gdut-600: #0f52ad;
-  --color-gdut-700: #00489a;
-  --color-gdut-800: #063a7a;
-  --color-gdut-900: #0a2d5c;
+  --color-gdut-50: #fff4eb;
+  --color-gdut-100: #ffe4cc;
+  --color-gdut-500: #e08a3c;
+  --color-gdut-600: #d46a30;
+  --color-gdut-700: #c45c22;
+  --color-gdut-800: #9a3e14;
+  --color-gdut-900: #7a3010;
   --color-player-50: #fff7ed;
   --color-player-100: #ffedd5;
   --color-player-500: #f97316;
@@ -87,13 +101,8 @@
   }
 
   .brand-mark {
-    @apply relative grid h-10 w-12 shrink-0 place-items-center overflow-hidden rounded-[4px] border border-white/10 bg-navy-950 text-[10px] font-black tracking-[0.15em] text-white;
-    box-shadow: 0 6px 18px rgb(7 25 43 / 18%);
-  }
-
-  .brand-mark::after {
-    @apply absolute inset-x-0 bottom-0 h-[3px] bg-gdut-500;
-    content: '';
+    @apply block h-10 w-10 shrink-0;
+    filter: drop-shadow(0 6px 12px rgb(243 108 22 / 32%));
   }
 
   .surface {
@@ -107,11 +116,11 @@
   }
 
   .eyebrow {
-    @apply flex items-center gap-2 text-[11px] font-bold tracking-[0.18em] text-gdut-700 uppercase;
+    @apply flex items-center gap-2 text-[11px] font-bold tracking-[0.18em] text-[#c45c22] uppercase;
   }
 
   .eyebrow::before {
-    @apply block h-px w-5 bg-gdut-500;
+    @apply block h-px w-5 bg-[#e08a3c];
     content: '';
   }
 
@@ -128,7 +137,7 @@
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-md border border-navy-950 bg-navy-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-px hover:bg-navy-800 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center rounded-md border border-gdut-800 bg-gdut-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-px hover:bg-gdut-800 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-secondary {
@@ -148,20 +157,20 @@
   }
 
   .page-masthead {
-    @apply relative overflow-hidden rounded-xl border border-navy-800 bg-navy-950 px-5 py-7 text-white shadow-panel sm:px-8 sm:py-9 lg:px-10;
+    @apply relative overflow-hidden rounded-xl px-5 py-7 text-white shadow-panel sm:px-8 sm:py-9 lg:px-10;
+    border: 1px solid #c56a34;
     background-image:
-      linear-gradient(rgb(255 255 255 / 4%) 1px, transparent 1px),
-      linear-gradient(90deg, rgb(255 255 255 / 4%) 1px, transparent 1px);
-    background-size: 40px 40px;
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%), 0 24px 60px rgb(7 25 43 / 16%);
+      linear-gradient(118deg, transparent 14%, rgb(255 226 196 / 34%) 46%, transparent 74%),
+      linear-gradient(158deg, #e07c40 0%, #d06830 58%, #c45c24 100%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 24%), 0 18px 36px -22px rgb(196 92 36 / 40%);
   }
 
   .page-masthead::after {
     position: absolute;
     right: -0.08em;
     bottom: -0.26em;
-    content: 'GDUT';
-    color: rgb(255 255 255 / 3.5%);
+    content: 'CL';
+    color: rgb(255 255 255 / 12%);
     font-size: clamp(5rem, 14vw, 10rem);
     font-weight: 900;
     line-height: 1;
@@ -174,7 +183,11 @@
   }
 
   .page-masthead .eyebrow {
-    @apply text-blue-200;
+    color: #fff1e4;
+  }
+
+  .page-masthead .eyebrow::before {
+    background: #ffd7b0;
   }
 
   .page-masthead .page-title,
@@ -183,7 +196,11 @@
   }
 
   .page-masthead .masthead-copy {
-    @apply text-slate-300;
+    color: rgb(255 255 255 / 84%);
+  }
+
+  .page-masthead :is(.text-slate-300, .text-slate-400, .text-slate-500) {
+    color: rgb(255 244 232 / 82%);
   }
 
   .subnav-panel {
@@ -191,8 +208,12 @@
   }
 
   .hero-panel {
-    @apply relative overflow-hidden rounded-xl border border-navy-800 bg-navy-950 text-white;
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%), 0 30px 70px rgb(7 25 43 / 20%);
+    @apply relative overflow-hidden rounded-xl text-white;
+    border: 1px solid #a84816;
+    background:
+      radial-gradient(42% 90% at 100% -10%, #e08948, transparent 62%),
+      linear-gradient(165deg, #c45c22 0%, #b35018 100%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%), 0 14px 30px -22px rgb(168 72 22 / 55%);
   }
 
   .hero-panel::before {
@@ -200,15 +221,433 @@
     inset: 0;
     pointer-events: none;
     content: '';
-    opacity: 0.7;
+    opacity: 0.28;
     background-image:
-      linear-gradient(rgb(255 255 255 / 4%) 1px, transparent 1px),
-      linear-gradient(90deg, rgb(255 255 255 / 4%) 1px, transparent 1px);
+      linear-gradient(rgb(90 32 8 / 10%) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(90 32 8 / 10%) 1px, transparent 1px);
     background-size: 48px 48px;
-    mask-image: linear-gradient(110deg, transparent 5%, black 75%);
+    mask-image: linear-gradient(110deg, transparent 8%, black 80%);
   }
 
   .hero-panel > * {
     @apply relative z-10;
+  }
+
+  /* 首页「正在进行」：比亮橙收一点，比深橘亮一点，斜向渐变能看出来 */
+  .hero-panel.hero-live {
+    border-color: #d4844e;
+    color: #fff;
+    background:
+      linear-gradient(118deg, transparent 16%, rgb(255 226 196 / 48%) 47%, transparent 76%),
+      linear-gradient(152deg, #ee8d52 0%, #e07838 48%, #d46a30 100%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 32%), 0 14px 28px -20px rgb(212 106 48 / 42%);
+  }
+
+  /* ── 项目色阶：同一色相 7 级深浅 ── */
+  [data-sport='basketball'] {
+    --tone-50: #fff6ee;
+    --tone-100: #ffe8d4;
+    --tone-200: #f8cba4;
+    --tone-300: #efa66e;
+    --tone-500: #dc7a32;
+    --tone-700: #a4521c;
+    --tone-900: #552a10;
+  }
+
+  [data-sport='football'] {
+    --tone-50: #f3f8ef;
+    --tone-100: #e2efd9;
+    --tone-200: #c5e0b6;
+    --tone-300: #9ecb8a;
+    --tone-500: #67a352;
+    --tone-700: #417635;
+    --tone-900: #223e1c;
+  }
+
+  [data-sport='volleyball'] {
+    --tone-50: #fcfbf7;
+    --tone-100: #f4f0e6;
+    --tone-200: #e6dfcf;
+    --tone-300: #d2c6ab;
+    --tone-500: #a8967a;
+    --tone-700: #74654d;
+    --tone-900: #3c3427;
+  }
+
+  [data-sport='badminton'] {
+    --tone-50: #f1f7f8;
+    --tone-100: #ddedf0;
+    --tone-200: #b9dbe2;
+    --tone-300: #8dc2cd;
+    --tone-500: #4f96a7;
+    --tone-700: #2f6978;
+    --tone-900: #183a43;
+  }
+
+  [data-sport='tabletennis'] {
+    --tone-50: #fdf4f3;
+    --tone-100: #fbe4e1;
+    --tone-200: #f3c4be;
+    --tone-300: #e99d94;
+    --tone-500: #d1685c;
+    --tone-700: #a0423a;
+    --tone-900: #51201c;
+  }
+
+  .league-card {
+    @apply relative isolate flex flex-col overflow-hidden rounded-[14px] p-5;
+    border: 1px solid var(--tone-200);
+    background:
+      radial-gradient(120% 85% at 100% 0%, var(--tone-100) 0%, transparent 58%),
+      linear-gradient(165deg, var(--tone-50) 0%, #fff 72%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 85%),
+      0 1px 2px rgb(7 25 43 / 4%),
+      0 14px 32px -20px var(--tone-500);
+    transition:
+      transform 0.25s ease,
+      border-color 0.25s ease,
+      box-shadow 0.25s ease;
+  }
+
+  .league-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--tone-300);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 85%),
+      0 2px 4px rgb(7 25 43 / 5%),
+      0 22px 44px -22px var(--tone-500);
+  }
+
+  /* 右下角的大号项目名水印 */
+  .league-card::after {
+    position: absolute;
+    z-index: -1;
+    right: -0.06em;
+    bottom: -0.2em;
+    content: attr(data-watermark);
+    color: var(--tone-100);
+    font-family: 'Sport Display', var(--font-sans);
+    font-size: 7rem;
+    line-height: 1;
+    white-space: nowrap;
+    pointer-events: none;
+    transform: rotate(-6deg);
+    transition: color 0.3s ease;
+  }
+
+  .league-card-compact::after {
+    font-size: 4.25rem;
+  }
+
+  .league-card:hover::after {
+    color: var(--tone-200);
+  }
+
+  .sport-chip {
+    @apply grid h-11 w-11 shrink-0 place-items-center rounded-xl text-2xl;
+    border: 1px solid var(--tone-200);
+    background: linear-gradient(145deg, #fff, var(--tone-100));
+    box-shadow: 0 4px 12px -6px var(--tone-500);
+  }
+
+  .sport-chip:has(img) {
+    @apply h-14 w-14 overflow-hidden p-0.5;
+  }
+
+  .sport-chip img {
+    @apply h-full w-full rounded-[10px] object-cover;
+  }
+
+  .sport-chip-sm {
+    @apply h-10 w-10 text-xl;
+  }
+
+  .sport-chip-sm:has(img) {
+    @apply h-11 w-11;
+  }
+
+  .sport-name {
+    color: var(--tone-700);
+    font-family: 'Sport Display', var(--font-sans);
+    font-size: 1.45rem;
+    line-height: 1;
+    letter-spacing: 0.04em;
+  }
+
+  .sport-en {
+    @apply text-[10px] font-bold tracking-[0.18em] uppercase;
+    color: var(--tone-500);
+  }
+
+  /* 联赛名：一道很淡的流光，隔几秒扫过一次 */
+  .league-title {
+    @apply text-xl font-extrabold tracking-[-0.02em];
+    color: var(--tone-900);
+    background: linear-gradient(
+        105deg,
+        var(--tone-900) 0%,
+        var(--tone-900) 42%,
+        var(--tone-500) 50%,
+        var(--tone-900) 58%,
+        var(--tone-900) 100%
+      )
+      100% 0 / 260% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: league-sheen 7s ease-in-out infinite;
+  }
+
+  .league-card:nth-child(3n + 2) .league-title {
+    animation-delay: 1.6s;
+  }
+
+  .league-card:nth-child(3n) .league-title {
+    animation-delay: 3.2s;
+  }
+
+  .tone-track {
+    @apply h-1.5 overflow-hidden rounded-full;
+    background: var(--tone-100);
+  }
+
+  .tone-fill {
+    @apply h-full rounded-full;
+    background: linear-gradient(90deg, var(--tone-300), var(--tone-500));
+  }
+
+  .tone-label {
+    @apply text-[10px] font-bold tracking-[0.14em] uppercase;
+    color: color-mix(in srgb, var(--tone-700) 70%, transparent);
+  }
+
+  .tone-value {
+    color: var(--tone-900);
+  }
+
+  .tone-muted {
+    color: color-mix(in srgb, var(--tone-700) 65%, transparent);
+  }
+
+  .tone-divider {
+    border-color: color-mix(in srgb, var(--tone-200) 70%, transparent);
+  }
+
+  .tone-tab-active {
+    border-color: var(--tone-500);
+    color: var(--tone-700);
+  }
+
+  .tone-pill {
+    border: 1px solid var(--tone-200);
+    background: var(--tone-50);
+    color: var(--tone-700);
+  }
+
+  .tone-day-rule {
+    background: color-mix(in srgb, var(--tone-300) 75%, transparent);
+  }
+
+  .tone-switch {
+    border-color: var(--tone-200);
+    background: color-mix(in srgb, white 40%, var(--tone-50));
+  }
+
+  .tone-switch-on {
+    background: var(--tone-700);
+    color: #fff;
+  }
+
+  .sport-masthead {
+    @apply relative isolate overflow-hidden rounded-xl px-5 py-8 sm:px-8 sm:py-10 lg:px-10;
+    border: 1px solid color-mix(in srgb, var(--tone-200) 75%, white);
+    background-image:
+      linear-gradient(112deg, transparent 28%, rgb(255 255 255 / 70%) 46%, transparent 64%),
+      linear-gradient(165deg, #fff 0%, var(--tone-50) 48%, color-mix(in srgb, var(--tone-100) 55%, white) 100%);
+    background-size: 220% 100%, auto;
+    background-position: 120% 0, 0 0;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 90%), 0 18px 36px -28px var(--tone-700);
+    animation: sport-masthead-sheen 9s ease-in-out infinite;
+  }
+
+  .sport-masthead::after {
+    position: absolute;
+    right: -0.04em;
+    bottom: -0.22em;
+    content: attr(data-watermark);
+    color: color-mix(in srgb, var(--tone-200) 70%, transparent);
+    font-family: 'Sport Display', var(--font-sans);
+    font-size: clamp(4.5rem, 12vw, 8rem);
+    line-height: 1;
+    letter-spacing: 0.04em;
+    pointer-events: none;
+  }
+
+  .sport-masthead > * {
+    @apply relative z-10;
+  }
+
+  .sport-masthead .eyebrow {
+    color: var(--tone-700);
+  }
+
+  .sport-masthead .eyebrow::before {
+    background: var(--tone-300);
+  }
+
+  .sport-masthead .masthead-copy {
+    color: color-mix(in srgb, var(--tone-900) 68%, white);
+  }
+
+  .sport-poster {
+    @apply m-0 flex flex-col items-start gap-1;
+  }
+
+  .sport-poster-name,
+  .sport-poster-mark {
+    font-family: 'Sport Poster', 'Sport Display', var(--font-sans);
+    font-size: clamp(3rem, 6.5vw, 4.6rem);
+    font-weight: 400;
+    line-height: 0.92;
+    letter-spacing: 0.04em;
+  }
+
+  .sport-poster-name {
+    color: var(--tone-900);
+  }
+
+  .sport-poster-mark {
+    margin-top: 0.06em;
+    color: var(--tone-500);
+  }
+
+  .sport-card-accent {
+    @apply absolute top-0 left-0 h-0.5 w-full origin-left scale-x-0 transition duration-200;
+    background: linear-gradient(90deg, var(--tone-300), var(--tone-500));
+  }
+
+  .group:hover .sport-card-accent {
+    transform: scaleX(1);
+  }
+
+  .sport-season {
+    color: var(--tone-500);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+  }
+
+  .sport-league-name {
+    color: #141414;
+    font-size: 1.125rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .sport-index {
+    border: 1px solid var(--tone-200);
+    background: var(--tone-50);
+    color: var(--tone-700);
+    padding: 0.12rem 0.38rem;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    line-height: 1.4;
+  }
+
+  .sport-card-meta {
+    color: #3f3f3f;
+  }
+
+  .league-logo {
+    @apply h-8 w-8 shrink-0 rounded-lg object-cover;
+    border: 1px solid var(--tone-200);
+    background: #fff;
+    box-shadow: 0 6px 14px -8px var(--tone-700);
+  }
+
+  /* 项目页：白底，只在角落留一层很淡的项目色 */
+  .app-shell[data-sport] {
+    background-color: #fffdfb;
+    background-image:
+      radial-gradient(32rem 18rem at 108% -8%, color-mix(in srgb, var(--tone-100) 80%, white), transparent 62%),
+      linear-gradient(180deg, #fff 0%, #faf7f3 100%);
+  }
+
+  .app-shell[data-sport]::before {
+    opacity: 0.35;
+    background-image:
+      linear-gradient(color-mix(in srgb, var(--tone-200) 45%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in srgb, var(--tone-200) 45%, transparent) 1px, transparent 1px);
+  }
+
+  .app-shell[data-sport] .page-masthead {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 8%),
+      inset 0 -3px 0 var(--tone-500),
+      0 24px 50px color-mix(in srgb, var(--tone-900) 16%, transparent);
+  }
+
+  .app-shell[data-sport] .subnav-panel {
+    border-color: color-mix(in srgb, var(--tone-300) 70%, white);
+    background: linear-gradient(180deg, #fff 0%, var(--tone-50) 100%);
+  }
+
+  .app-shell[data-sport] .surface,
+  .app-shell[data-sport] .surface-interactive {
+    border-color: color-mix(in srgb, var(--tone-200) 80%, white);
+    background: #fff;
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--tone-700) 6%, transparent);
+  }
+
+  .app-shell[data-sport] .surface-interactive:hover {
+    border-color: var(--tone-300);
+    box-shadow: 0 16px 32px -22px var(--tone-500);
+  }
+
+  .app-shell[data-sport] .empty-state {
+    border-color: var(--tone-300);
+    background: color-mix(in srgb, var(--tone-50) 72%, transparent);
+    color: var(--tone-700);
+  }
+
+  .app-shell[data-sport] .field {
+    border-color: var(--tone-200);
+    background: #fff;
+  }
+
+  .app-shell[data-sport] .field:focus {
+    border-color: var(--tone-500);
+  }
+}
+
+@keyframes league-sheen {
+  0%,
+  55% {
+    background-position: 100% 0;
+  }
+
+  100% {
+    background-position: 0 0;
+  }
+}
+
+@keyframes sport-masthead-sheen {
+  0%,
+  58% {
+    background-position: 120% 0, 0 0;
+  }
+
+  100% {
+    background-position: -30% 0, 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .league-title,
+  .sport-masthead {
+    animation: none;
   }
 }

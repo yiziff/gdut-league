@@ -3,7 +3,7 @@ import type { MatchStatus } from '../types';
 const STYLE: Record<MatchStatus, string> = {
   scheduled: 'border-slate-200 bg-white text-slate-500',
   live: 'border-red-200 bg-red-50 text-red-700',
-  finished: 'border-navy-100 bg-navy-50 text-navy-700',
+  finished: 'border-gdut-100 bg-gdut-50 text-gdut-800',
 };
 
 const LABEL: Record<MatchStatus, string> = {

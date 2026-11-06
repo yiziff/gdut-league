@@ -3,7 +3,11 @@ import type { Division, Sport, Stage } from './types';
 export interface SportMeta {
   id: Sport;
   name: string;
+  /** 英文名，卡片上作小字点缀 */
+  en: string;
   icon: string;
+  /** 卡片头像图，缺省时回落到 icon */
+  avatar?: string;
   /** 比分单位，用于界面展示 */
   scoreUnit: string;
   /** 每组前几名出线 */
@@ -15,7 +19,9 @@ export const SPORTS: SportMeta[] = [
   {
     id: 'basketball',
     name: '篮球',
+    en: 'Basketball',
     icon: '🏀',
+    avatar: `${import.meta.env.BASE_URL}sports/basketball.webp`,
     scoreUnit: '分',
     qualifiers: 2,
     ruleText: '胜 2 分，负 1 分，弃权 0 分；积分相同依次比较相互间胜负、净胜分、总得分。',
@@ -23,7 +29,9 @@ export const SPORTS: SportMeta[] = [
   {
     id: 'football',
     name: '足球',
+    en: 'Football',
     icon: '⚽',
+    avatar: `${import.meta.env.BASE_URL}sports/football.webp`,
     scoreUnit: '球',
     qualifiers: 2,
     ruleText: '胜 3 分，平 1 分，负 0 分；积分相同依次比较净胜球、进球数、相互间成绩。',
@@ -31,7 +39,9 @@ export const SPORTS: SportMeta[] = [
   {
     id: 'volleyball',
     name: '排球',
+    en: 'Volleyball',
     icon: '🏐',
+    avatar: `${import.meta.env.BASE_URL}sports/volleyball.webp`,
     scoreUnit: '局',
     qualifiers: 2,
     ruleText: '3:0 或 3:1 胜方得 3 分；3:2 胜方得 2 分、负方得 1 分；积分相同依次比较胜局比、得分比。',
@@ -39,7 +49,9 @@ export const SPORTS: SportMeta[] = [
   {
     id: 'badminton',
     name: '羽毛球',
+    en: 'Badminton',
     icon: '🏸',
+    avatar: `${import.meta.env.BASE_URL}sports/badminton.webp`,
     scoreUnit: '场',
     qualifiers: 2,
     ruleText: '团体赛五场三胜。胜 2 分，负 1 分，弃权 0 分；积分相同依次比较小场胜负比、相互间胜负。',
@@ -47,7 +59,9 @@ export const SPORTS: SportMeta[] = [
   {
     id: 'tabletennis',
     name: '乒乓球',
+    en: 'Table Tennis',
     icon: '🏓',
+    avatar: `${import.meta.env.BASE_URL}sports/tabletennis.webp`,
     scoreUnit: '场',
     qualifiers: 2,
     ruleText: '团体赛五场三胜。胜 2 分，负 1 分，弃权 0 分；积分相同依次比较小场胜负比、相互间胜负。',

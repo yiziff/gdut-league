@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
+import { readLogoFile } from '../../lib/logoFile';
 import { SPORTS } from '../../sports';
 import { useData, useDataState } from '../../data/store';
 import type { League, Sport } from '../../types';
@@ -13,6 +14,7 @@ function AdminHomeBody() {
   const [sport, setSport] = useState<Sport>('basketball');
   const [name, setName] = useState('');
   const [season, setSeason] = useState('2026 秋季');
+  const [logo, setLogo] = useState('');
   const [error, setError] = useState('');
 
   async function create(event: FormEvent) {
@@ -21,7 +23,7 @@ function AdminHomeBody() {
     try {
       const created = await api<League>('/api/admin/leagues', {
         method: 'POST',
-        body: JSON.stringify({ sport, name, season }),
+        body: JSON.stringify({ sport, name, season, logo }),
       });
       await reload();
       navigate(`/admin/leagues/${created.id}`);
@@ -76,6 +78,26 @@ function AdminHomeBody() {
         <label className="text-sm font-medium text-slate-700">
           赛季
           <input value={season} onChange={(event) => setSeason(event.target.value)} className="field mt-1.5 w-full" />
+        </label>
+        <label className="text-sm font-medium text-slate-700 sm:col-span-4">
+          联赛 Logo
+          <span className="mt-1 block text-xs font-normal text-slate-400">选填。会显示在前台赛季名称的左边。</span>
+          <span className="mt-2 flex items-center gap-3">
+            {logo ? <img src={logo} alt="" className="h-12 w-12 rounded-lg object-cover" /> : null}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="text-sm text-slate-600"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                void readLogoFile(file).then(setLogo).catch((err: unknown) => {
+                  setLogo('');
+                  setError(err instanceof Error ? err.message : 'Logo 无法读取');
+                });
+              }}
+            />
+          </span>
         </label>
         {error && <p className="text-sm text-red-600 sm:col-span-4">{error}</p>}
         <button type="submit" className="btn-primary sm:col-span-4 sm:w-fit">

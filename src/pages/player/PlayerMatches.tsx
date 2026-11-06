@@ -41,10 +41,10 @@ export default function PlayerMatches() {
       <h1 className="page-title mb-6">比赛日程</h1>
 
       <div className="surface mb-4 flex max-w-sm p-1 text-sm">
-        <button type="button" onClick={() => setScope('all')} className={`flex-1 rounded-md py-2 ${scope === 'all' ? 'bg-navy-950 font-semibold text-white' : 'text-slate-500 hover:text-navy-950'}`}>
+        <button type="button" onClick={() => setScope('all')} className={`flex-1 rounded-md py-2 ${scope === 'all' ? 'bg-gdut-700 font-semibold text-white' : 'text-slate-500 hover:text-gdut-800'}`}>
           全部
         </button>
-        <button type="button" onClick={() => setScope('mine')} className={`flex-1 rounded-md py-2 ${scope === 'mine' ? 'bg-navy-950 font-semibold text-white' : 'text-slate-500 hover:text-navy-950'}`}>
+        <button type="button" onClick={() => setScope('mine')} className={`flex-1 rounded-md py-2 ${scope === 'mine' ? 'bg-gdut-700 font-semibold text-white' : 'text-slate-500 hover:text-gdut-800'}`}>
           我的
         </button>
       </div>

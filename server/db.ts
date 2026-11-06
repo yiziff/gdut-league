@@ -110,6 +110,11 @@ db.exec(`
   END;
 `);
 
+const leagueColumns = db.prepare('PRAGMA table_info(leagues)').all() as { name: string }[];
+if (!leagueColumns.some((column) => column.name === 'logo')) {
+  db.exec("ALTER TABLE leagues ADD COLUMN logo TEXT NOT NULL DEFAULT ''");
+}
+
 export function transaction<T>(fn: () => T): T {
   db.exec('BEGIN');
   try {
@@ -127,6 +132,7 @@ interface LeagueRow {
   sport: string;
   name: string;
   season: string;
+  logo: string;
   created_at: string;
 }
 
@@ -167,7 +173,7 @@ const json = (value: unknown) => (value == null ? null : JSON.stringify(value));
 const parse = <T>(value: string | null): T | undefined => (value ? (JSON.parse(value) as T) : undefined);
 
 function toLeague(row: LeagueRow): League {
-  return { id: row.id, sport: row.sport as Sport, name: row.name, season: row.season };
+  return { id: row.id, sport: row.sport as Sport, name: row.name, season: row.season, logo: row.logo ?? '' };
 }
 
 function toTeam(row: TeamRow): Team {
@@ -365,17 +371,18 @@ export function leagueCount(): number {
 }
 
 export function insertLeague(league: League): void {
-  db.prepare('INSERT INTO leagues (id, sport, name, season, created_at) VALUES (?, ?, ?, ?, ?)').run(
+  db.prepare('INSERT INTO leagues (id, sport, name, season, logo, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
     league.id,
     league.sport,
     league.name,
     league.season,
+    league.logo ?? '',
     new Date().toISOString(),
   );
 }
 
-export function updateLeague(id: string, name: string, season: string): void {
-  db.prepare('UPDATE leagues SET name = ?, season = ? WHERE id = ?').run(name, season, id);
+export function updateLeague(id: string, name: string, season: string, logo: string): void {
+  db.prepare('UPDATE leagues SET name = ?, season = ?, logo = ? WHERE id = ?').run(name, season, logo, id);
 }
 
 export function deleteLeague(id: string): void {

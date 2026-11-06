@@ -65,9 +65,9 @@ export default function Schedule() {
           <section key={date} id={`d-${date}`}>
             <div className="mb-4 flex items-center gap-3">
               <h2 className="font-semibold text-navy-950">{formatDate(date)}</h2>
-              {date === today && <span className="rounded border border-gdut-100 bg-gdut-50 px-2 py-0.5 text-xs font-semibold text-gdut-700">今天</span>}
+              {date === today && <span className="tone-pill rounded px-2 py-0.5 text-xs font-semibold">今天</span>}
               <span className="text-xs text-slate-400">{list.length} 场</span>
-              <span className="h-px flex-1 bg-slate-200" />
+              <span className="tone-day-rule h-px flex-1" />
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {list.map((m) => (

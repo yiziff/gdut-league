@@ -13,9 +13,9 @@ export default function PlayerHome() {
     <div className="space-y-8">
       <section className="hero-panel px-5 py-7 sm:px-8">
         <span className="absolute top-0 left-0 h-1 w-24 bg-player-500" aria-hidden="true" />
-        <p className="text-xs font-semibold tracking-[0.16em] text-player-400 uppercase">Player center</p>
-        <h1 className="mt-2 text-2xl font-bold tracking-tight">{profile ? `${profile.player.name}，你好` : '球员中心'}</h1>
-        <p className="mt-2 text-sm text-slate-300">{profile ? `${profile.team.name} · ${profile.league.name}` : '登录后查看本队赛程、生涯数据与个人资料。'}</p>
+        <p className="text-xs font-semibold tracking-[0.16em] text-white/75 uppercase">Player center</p>
+        <h1 className="mt-2 text-2xl font-bold tracking-tight text-white">{profile ? `${profile.player.name}，你好` : '球员中心'}</h1>
+        <p className="mt-2 text-sm text-white/80">{profile ? `${profile.team.name} · ${profile.league.name}` : '登录后查看本队赛程、生涯数据与个人资料。'}</p>
         {!profile && (
           <Link to="/player/login" className="mt-5 inline-flex rounded-lg bg-white px-4 py-2 text-sm font-semibold text-navy-950 hover:bg-slate-100">
             球员登录

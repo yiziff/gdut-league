@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
+import BrandMark from '../../components/BrandMark';
 import { DataGate } from '../../data/store';
 import { PlayerSessionProvider } from './session';
 
@@ -19,9 +20,7 @@ export default function PlayerLayout() {
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="flex h-16 items-center justify-between gap-5">
               <NavLink to="/player" className="flex min-w-0 items-center gap-3">
-                <span className="brand-mark">
-                  GDUT
-                </span>
+                <BrandMark className="brand-mark" />
                 <span className="min-w-0 leading-tight">
                   <span className="block truncate text-sm font-bold tracking-tight text-navy-950 sm:text-base">球员中心</span>
                   <span className="hidden text-[11px] font-medium tracking-wide text-player-600 sm:block">PLAYER PORTAL</span>
@@ -75,9 +74,9 @@ export default function PlayerLayout() {
             <Outlet />
           </DataGate>
         </main>
-        <footer className="border-t border-white/10 bg-navy-950 py-7 text-center text-xs text-slate-400">
-          <span className="font-medium text-slate-300">广东工业大学校园球类联赛</span>
-          <span className="mx-2 text-slate-600">/</span>
+        <footer className="border-t border-white/10 bg-[#8f3a12] py-7 text-center text-xs text-orange-100">
+          <span className="font-medium text-orange-50">校园联赛</span>
+          <span className="mx-2 text-orange-200/70">/</span>
           球员中心
         </footer>
       </div>

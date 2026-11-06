@@ -12,9 +12,12 @@ export default function SportLeagues() {
 
   return (
     <div>
-      <div className="page-masthead mb-10">
+      <div className="sport-masthead mb-10" data-watermark={meta.name}>
         <p className="eyebrow mb-3">Competitions</p>
-        <h1 className="page-title">{meta.name}赛事</h1>
+        <h1 className="sport-poster">
+          <span className="sport-poster-name">{meta.name}</span>
+          <span className="sport-poster-mark">赛事</span>
+        </h1>
         <p className="masthead-copy mt-4 text-sm">查看当前赛季全部{meta.name}联赛及比赛进度</p>
       </div>
       {list.length === 0 && (
@@ -34,15 +37,18 @@ export default function SportLeagues() {
               to={`/${sport}/${item.league.id}/schedule`}
               className="surface-interactive group relative overflow-hidden p-5"
             >
-              <span className="absolute top-0 left-0 h-0.5 w-full origin-left scale-x-0 bg-gdut-600 transition group-hover:scale-x-100" />
-              <div className="flex justify-between gap-3">
-                <p className="text-xs font-semibold tracking-wide text-gdut-600 uppercase">{item.league.season || '当前赛季'}</p>
-                <span className="text-[10px] font-bold tracking-[0.14em] text-slate-300">0{index + 1}</span>
+              <span className="sport-card-accent" />
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  {item.league.logo ? <img src={item.league.logo} alt="" className="league-logo" /> : null}
+                  <p className="sport-season truncate">{item.league.season || '当前赛季'}</p>
+                </div>
+                <span className="sport-index">0{index + 1}</span>
               </div>
-              <h2 className="mt-5 text-lg font-bold tracking-tight text-navy-950 transition group-hover:text-gdut-700">{item.league.name}</h2>
-              <div className="mt-7 flex items-center justify-between border-t border-slate-100 pt-4 text-sm text-slate-500">
-                <span>{item.teams.length} 支队伍</span>
-                <span className="tabular-nums">已赛 {done}/{item.matches.length}</span>
+              <h2 className="sport-league-name mt-5">{item.league.name}</h2>
+              <div className="mt-7 flex items-center justify-between border-t border-neutral-200 pt-4 text-sm">
+                <span className="sport-card-meta">{item.teams.length} 支队伍</span>
+                <span className="font-semibold tabular-nums text-neutral-950">已赛 {done}/{item.matches.length}</span>
               </div>
             </Link>
           );

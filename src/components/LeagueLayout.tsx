@@ -14,7 +14,7 @@ export function useLeague(): LeagueData {
 
 const tabClass = ({ isActive }: { isActive: boolean }) =>
   `shrink-0 border-b-2 px-1 pb-3 text-sm font-semibold transition ${
-    isActive ? 'border-gdut-600 text-navy-950' : 'border-transparent text-slate-500 hover:text-navy-900'
+    isActive ? 'tone-tab-active' : 'border-transparent text-slate-500 hover:text-navy-900'
   }`;
 
 export default function LeagueLayout() {
@@ -31,11 +31,11 @@ export default function LeagueLayout() {
     <div>
       <div className="page-masthead pb-11">
         <p className="mb-4 text-xs font-medium text-slate-400">
-          <NavLink to="/events" className="hover:text-gdut-700">
+          <NavLink to="/events" className="hover:text-white">
             赛事中心
           </NavLink>
           <span className="mx-2">/</span>
-          <NavLink to={`/${sport}`} className="hover:text-gdut-700">
+          <NavLink to={`/${sport}`} className="hover:text-white">
             {meta.name}
           </NavLink>
         </p>

@@ -51,6 +51,7 @@ import {
   updatePlayer,
   updateTeam,
 } from './db.ts';
+import { clearLeagueLogo, saveLeagueLogo } from './logo.ts';
 import { seedIfEmpty } from './seed.ts';
 
 function loadEnv(): void {
@@ -219,6 +220,7 @@ app.use('/api', (_req, res, next) => {
   next();
 });
 app.use(express.json({ limit: '4mb' }));
+app.use('/uploads', express.static(resolve('data/uploads'), { maxAge: '1h' }));
 
 app.get('/api/leagues', (req, res) => {
   const sport = typeof req.query.sport === 'string' ? req.query.sport : undefined;
@@ -361,6 +363,21 @@ app.get('/api/admin/me', (_req, res) => {
   res.json({ ok: true });
 });
 
+function logoFromBody(id: string, value: unknown, current = ''): string {
+  if (value === undefined) return current;
+  if (value === null || value === '') {
+    clearLeagueLogo(id);
+    return '';
+  }
+  if (typeof value !== 'string') throw new ApiError(400, 'Logo 格式不对');
+  if (value.startsWith('/uploads/leagues/')) return current;
+  try {
+    return saveLeagueLogo(id, value);
+  } catch (error) {
+    throw new ApiError(400, error instanceof Error ? error.message : 'Logo 无法保存');
+  }
+}
+
 app.post('/api/admin/leagues', (req, res) => {
   const sport = oneOf(req.body?.sport, SPORTS, '项目');
   const league: League = {
@@ -368,7 +385,9 @@ app.post('/api/admin/leagues', (req, res) => {
     sport,
     name: text(req.body?.name, '联赛名称'),
     season: optionalText(req.body?.season) ?? '',
+    logo: '',
   };
+  league.logo = logoFromBody(league.id, req.body?.logo, '');
   insertLeague(league);
   res.status(201).json(league);
 });
@@ -377,13 +396,15 @@ app.patch('/api/admin/leagues/:id', (req, res) => {
   const league = requireLeague(req.params.id);
   const name = text(req.body?.name ?? league.name, '联赛名称');
   const season = optionalText(req.body?.season ?? league.season) ?? '';
-  updateLeague(league.id, name, season);
-  res.json({ ...league, name, season });
+  const logo = logoFromBody(league.id, req.body?.logo, league.logo ?? '');
+  updateLeague(league.id, name, season, logo);
+  res.json({ ...league, name, season, logo });
 });
 
 app.delete('/api/admin/leagues/:id', (req, res) => {
   requireLeague(req.params.id);
   deleteLeague(req.params.id);
+  clearLeagueLogo(req.params.id);
   res.json({ ok: true });
 });
 

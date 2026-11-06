@@ -92,7 +92,7 @@ function TeamHeading({ team, name, align }: { team?: Team; name: string; align: 
     <div className={`flex items-center gap-2 ${align === 'right' ? 'sm:flex-row-reverse sm:text-right' : ''}`}>
       <span className="h-4 w-1 shrink-0 rounded-sm" style={{ backgroundColor: team?.color ?? '#cbd5e1' }} />
       {team ? (
-        <Link to={`/teams/${team.id}`} className="text-lg font-bold text-white hover:text-blue-200 sm:text-xl">
+        <Link to={`/teams/${team.id}`} className="text-lg font-bold text-white hover:text-orange-100 sm:text-xl">
           {name}
         </Link>
       ) : (
