@@ -87,7 +87,7 @@ export default function Events() {
                   </div>
                   <span className="tone-muted text-xs">{item.league.season || '当前赛季'}</span>
                 </div>
-                <h2 className="league-title mt-7">{item.league.name}</h2>
+                <h2 className={`league-title mt-7 league-level-${item.league.level}`}>{item.league.name}</h2>
                 <div className="mt-auto pt-8">
                   <div className="tone-muted mb-2 flex items-center justify-between text-xs">
                     <span>赛事进度</span>

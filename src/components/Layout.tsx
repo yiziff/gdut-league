@@ -9,12 +9,21 @@ const navClass = (active: boolean) =>
     active ? 'text-[#9a3e14] after:scale-x-100' : 'text-slate-500 after:scale-x-0 hover:text-[#9a3e14]'
   }`;
 
+const playerNavClass = (active: boolean) => `nav-player ${active ? 'nav-player-on' : ''}`;
+
+const PLAYER_LINKS = [
+  { to: '/player/matches', label: '比赛' },
+  { to: '/player/career', label: '生涯' },
+  { to: '/player/me', label: '我的' },
+];
+
 export default function Layout() {
   const { pathname } = useLocation();
   useEffect(() => window.scrollTo(0, 0), [pathname]);
   const segment = pathname.split('/')[1];
   const sportTheme = isSport(segment) ? segment : undefined;
   const eventArea = pathname === '/events' || !!sportTheme;
+  const playerArea = segment === 'player';
 
   return (
     <div className="app-shell flex flex-col" data-sport={sportTheme}>
@@ -40,9 +49,10 @@ export default function Layout() {
                 <NavLink to="/teams" className={({ isActive }) => navClass(isActive)}>
                   队伍
                 </NavLink>
-                <NavLink to="/player" className={({ isActive }) => navClass(isActive)}>
+                <NavLink to="/player" className={() => navClass(playerArea)}>
                   球员
                 </NavLink>
+                {playerArea && <PlayerLinks />}
               </nav>
               <span className="h-5 w-px bg-slate-200" />
               <NavLink
@@ -81,9 +91,10 @@ export default function Layout() {
             <NavLink to="/teams" className={({ isActive }) => navClass(isActive)}>
               队伍
             </NavLink>
-            <NavLink to="/player" className={({ isActive }) => navClass(isActive)}>
+            <NavLink to="/player" className={() => navClass(playerArea)}>
               球员
             </NavLink>
+            {playerArea && <PlayerLinks />}
           </nav>
         </div>
       </header>
@@ -105,5 +116,20 @@ export default function Layout() {
         </div>
       </footer>
     </div>
+  );
+}
+
+function PlayerLinks() {
+  return (
+    <>
+      <span className="mx-0.5 h-3 w-px shrink-0 bg-[#f3d2b4]" aria-hidden="true" />
+      <span className="flex items-center gap-3">
+        {PLAYER_LINKS.map((item) => (
+          <NavLink key={item.to} to={item.to} className={({ isActive }) => playerNavClass(isActive)}>
+            {item.label}
+          </NavLink>
+        ))}
+      </span>
+    </>
   );
 }

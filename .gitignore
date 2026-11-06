@@ -2,5 +2,7 @@ node_modules
 dist
 .DS_Store
 .env
+.venv-ocr
 data/*.db
 data/uploads/
+data/digit-samples/

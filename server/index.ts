@@ -5,6 +5,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import type {
   Division,
   League,
+  LeagueLevel,
   Match,
   MatchStatSheet,
   MatchStatSheetTemplate,
@@ -18,7 +19,9 @@ import type {
   Stage,
   Team,
 } from '../src/types.ts';
+import { LEAGUE_LEVELS } from '../src/types.ts';
 import { summarizeCareer } from '../src/lib/career.ts';
+import { pointsKey, tallyMarks, type ScoreMark, type SheetSide } from '../src/lib/fibaScore.ts';
 import { docxToText } from '../src/lib/docxRoster.ts';
 import { planFormat, type FormatPreset } from '../src/lib/formats.ts';
 import { PLAYER_STAT_KEYS } from '../src/lib/playerStats.ts';
@@ -36,6 +39,8 @@ import {
   playerIdFromRequest,
   readPlayerToken,
   readCookie,
+  renameSession,
+  sessionName,
   sessionValid,
   setPlayerCookie,
   setSessionCookie,
@@ -68,7 +73,8 @@ import {
   updatePlayer,
   updateTeam,
 } from './db.ts';
-import { clearLeagueLogo, saveLeagueLogo } from './logo.ts';
+import { extractFibaSheet, FibaSheetError, saveDigitSamples } from './fibaSheet.ts';
+import { clearLeagueLogo, clearPlayerAvatar, saveLeagueLogo, savePlayerAvatar } from './logo.ts';
 import { seedIfEmpty } from './seed.ts';
 import {
   analyzeStatSheetTemplateImage,
@@ -98,6 +104,7 @@ class ApiError extends Error {
 }
 
 const SPORTS: Sport[] = ['basketball', 'football', 'badminton', 'volleyball', 'tabletennis'];
+const LEVELS: LeagueLevel[] = LEAGUE_LEVELS.map((item) => item.id);
 const DIVISIONS: Division[] = ['men', 'women', 'mixed'];
 const STAGES: Stage[] = ['group', 'R16', 'QF', 'SF', 'F', '3rd'];
 const STATUSES: MatchStatus[] = ['scheduled', 'live', 'finished'];
@@ -168,12 +175,7 @@ function linesOf(value: unknown, home: string | null, away: string | null): Play
     if (!playerId || !allowed.has(playerId)) throw new ApiError(400, '球员不属于这场比赛的队伍');
     if (seen.has(playerId)) throw new ApiError(400, '球员数据重复了');
     seen.add(playerId);
-    const line: PlayerLine = {
-      playerId,
-      points: statNum(raw.points, '得分'),
-      rebounds: statNum(raw.rebounds, '篮板'),
-      assists: statNum(raw.assists, '助攻'),
-    };
+    const line: PlayerLine = { playerId, points: statNum(raw.points, '得分') };
     const labels: Record<PlayerStatKey, string> = {
       points: '得分',
       rebounds: '篮板',
@@ -192,7 +194,7 @@ function linesOf(value: unknown, home: string | null, away: string | null): Play
       fouls: '犯规',
     };
     for (const key of PLAYER_STAT_KEYS) {
-      if (key === 'points' || key === 'rebounds' || key === 'assists') continue;
+      if (key === 'points') continue;
       if (raw[key] === '' || raw[key] == null) continue;
       line[key] = statNum(raw[key], labels[key]);
     }
@@ -291,7 +293,7 @@ function parseMatch(body: unknown, league: League, id: string): Match {
   }
   const status = oneOf(raw.status, STATUSES, '比赛状态');
   const score = scoreOf(raw.score, '比分');
-  if (status !== 'scheduled' && !score) throw new ApiError(400, '进行中或已结束的比赛需要填写比分');
+    if (status === 'live' && !score) throw new ApiError(400, '进行中的比赛需要填写比分');
   const time = text(raw.time, '比赛时间');
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(time)) throw new ApiError(400, '比赛时间格式应为 2026-11-03T14:00');
 
@@ -349,22 +351,36 @@ app.use('/uploads', express.static(resolve('data/uploads'), { maxAge: '1h' }));
 app.get('/api/leagues', (req, res) => {
   const sport = typeof req.query.sport === 'string' ? req.query.sport : undefined;
   if (sport && !SPORTS.includes(sport as Sport)) throw new ApiError(400, '项目不正确');
-  res.json(listLeagues(sport));
+  res.json(listLeagues(sport, true));
 });
 
 app.get('/api/leagues/:id', (req, res) => {
   const league = requireLeague(req.params.id);
+  if (!league.published && !sessionValid(req)) throw new ApiError(404, '联赛不存在');
   res.json({ league, teams: teamsOf(league.id), matches: matchesOf(league.id) });
 });
 
 app.get('/api/snapshot', (_req, res) => {
-  res.json({ leagues: listLeagues().map(({ teamCount: _t, matchCount: _m, finishedCount: _f, ...league }) => league), teams: allTeams(), matches: allMatches() });
+  const leagues = listLeagues(undefined, true);
+  const visible = new Set(leagues.map((league) => league.id));
+  res.json({
+    leagues: leagues.map(({ teamCount: _t, matchCount: _m, finishedCount: _f, ...league }) => league),
+    teams: allTeams().filter((team) => visible.has(team.leagueId)),
+    matches: allMatches().filter((match) => match.leagueId && visible.has(match.leagueId)),
+  });
 });
+
+function organizerName(value: unknown): string {
+  const name = typeof value === 'string' ? value.trim() : '';
+  if (!name) throw new ApiError(400, '请填写你的名字');
+  if (name.length > 20) throw new ApiError(400, '名字太长了');
+  return name;
+}
 
 app.post('/api/admin/login', (req, res) => {
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
   if (!passwordOk(password)) throw new ApiError(401, '密码不对');
-  setSessionCookie(res, createSession());
+  setSessionCookie(res, createSession(organizerName(req.body?.name)));
   res.json({ ok: true });
 });
 
@@ -395,7 +411,14 @@ function playerBody(body: unknown) {
   };
   const position = optionalText(source.position) ?? '';
   if (position.length > 20) throw new ApiError(400, '位置太长了');
+  const place = (value: unknown, label: string) => {
+    const textValue = optionalText(value) ?? '';
+    if (textValue.length > 40) throw new ApiError(400, `${label}太长了`);
+    return textValue;
+  };
   return {
+    school: place(source.school, '学校'),
+    college: place(source.college, '学院'),
     className: text(source.className, '班级'),
     name: text(source.name, '姓名'),
     number: text(source.number, '号码'),
@@ -404,6 +427,21 @@ function playerBody(body: unknown) {
     height: measure(source.height, '身高'),
     weight: measure(source.weight, '体重'),
   };
+}
+
+function avatarFromBody(id: string, value: unknown, current = ''): string {
+  if (value === undefined) return current;
+  if (value === null || value === '') {
+    clearPlayerAvatar(id);
+    return '';
+  }
+  if (typeof value !== 'string') throw new ApiError(400, '头像格式不对');
+  if (value.startsWith('/uploads/players/')) return current;
+  try {
+    return savePlayerAvatar(id, value);
+  } catch (error) {
+    throw new ApiError(400, error instanceof Error ? error.message : '头像无法保存');
+  }
 }
 
 function writePlayer(player: Player, mode: 'insert' | 'update'): void {
@@ -466,7 +504,8 @@ app.get('/api/player/me', (req, res) => {
 app.patch('/api/player/me', (req, res) => {
   const account = requirePlayerAccount(req);
   const fields = playerBody(req.body);
-  const player: Player = { ...account.player, ...fields };
+  const avatar = avatarFromBody(account.player.id, req.body?.avatar, account.player.avatar ?? '');
+  const player: Player = { ...account.player, ...fields, avatar };
   writePlayer(player, 'update');
   res.json(getPlayerAccount(player.id));
 });
@@ -483,9 +522,23 @@ app.use('/api/admin', (req, res, next) => {
   next();
 });
 
-app.get('/api/admin/me', (_req, res) => {
-  res.json({ ok: true });
+app.get('/api/admin/me', (req, res) => {
+  res.json({ ok: true, name: sessionName(req) });
 });
+
+app.patch('/api/admin/me', (req, res) => {
+  const name = organizerName(req.body?.name);
+  if (!renameSession(req, name)) throw new ApiError(401, '请先登录');
+  res.json({ ok: true, name });
+});
+
+app.get('/api/admin/leagues', (_req, res) => {
+  res.json(listLeagues());
+});
+
+function canEditLeague(league: League, actor: string): boolean {
+  return !league.createdBy || league.createdBy === actor;
+}
 
 function logoFromBody(id: string, value: unknown, current = ''): string {
   if (value === undefined) return current;
@@ -503,13 +556,18 @@ function logoFromBody(id: string, value: unknown, current = ''): string {
 }
 
 app.post('/api/admin/leagues', (req, res) => {
+  const actor = sessionName(req);
+  if (!actor) throw new ApiError(400, '请先填写你的名字');
   const sport = oneOf(req.body?.sport, SPORTS, '项目');
   const league: League = {
     id: randomUUID(),
     sport,
     name: text(req.body?.name, '联赛名称'),
     season: optionalText(req.body?.season) ?? '',
+    level: oneOf(req.body?.level, LEVELS, '级别'),
     logo: '',
+    createdBy: actor,
+    published: false,
   };
   league.logo = logoFromBody(league.id, req.body?.logo, '');
   insertLeague(league);
@@ -518,15 +576,21 @@ app.post('/api/admin/leagues', (req, res) => {
 
 app.patch('/api/admin/leagues/:id', (req, res) => {
   const league = requireLeague(req.params.id);
+  const actor = sessionName(req);
+  if (!canEditLeague(league, actor)) throw new ApiError(403, `这个联赛由 ${league.createdBy} 创建，上线之后只有创建者可以改资料`);
   const name = text(req.body?.name ?? league.name, '联赛名称');
   const season = optionalText(req.body?.season ?? league.season) ?? '';
+  const level = oneOf(req.body?.level ?? league.level, LEVELS, '级别');
   const logo = logoFromBody(league.id, req.body?.logo, league.logo ?? '');
-  updateLeague(league.id, name, season, logo);
-  res.json({ ...league, name, season, logo });
+  const createdBy = !league.createdBy && req.body?.claim === true ? actor : league.createdBy;
+  const published = typeof req.body?.published === 'boolean' ? req.body.published : league.published;
+  updateLeague(league.id, name, season, level, logo, createdBy, published);
+  res.json({ ...league, name, season, level, logo, createdBy, published });
 });
 
 app.delete('/api/admin/leagues/:id', (req, res) => {
-  requireLeague(req.params.id);
+  const league = requireLeague(req.params.id);
+  if (!canEditLeague(league, sessionName(req))) throw new ApiError(403, `这个联赛由 ${league.createdBy} 创建，只有创建者可以删除`);
   deleteLeague(req.params.id);
   clearLeagueLogo(req.params.id);
   res.json({ ok: true });
@@ -598,9 +662,12 @@ app.post('/api/admin/leagues/:id/roster', (req, res) => {
           name: player.name,
           number: player.number,
           position: '',
+          school: '',
+          college: '',
           gender: '' as const,
           height: '',
           weight: '',
+          avatar: '',
         };
         try {
           insertPlayer(created);
@@ -685,18 +752,42 @@ app.patch('/api/admin/matches/:id', (req, res, next) => {
     if (!existing?.leagueId) throw new ApiError(404, '比赛不存在');
     const league = requireLeague(existing.leagueId);
     const match = parseMatch({ ...existing, ...req.body }, league, existing.id);
+    const scoresheet = existing.statSheet?.scoresheet;
+    if (match.statSheet && scoresheet && match.statSheet.imageUrl === existing.statSheet?.imageUrl) {
+      match.statSheet.scoresheet = scoresheet;
+    }
     await applyStatSheetTemplateImage(match, req.body?.statSheetTemplateImage);
     updateMatch(match);
     res.json(match);
   })().catch(next);
 });
 
+function finishMatchWithSheet(
+  match: Match,
+  statSheet: MatchStatSheet,
+  parsed?: { rows: { playerId: string; stats: Partial<Record<PlayerStatKey, number>> }[]; score?: Score },
+): void {
+  match.status = 'finished';
+  match.statSheet = statSheet;
+  if (parsed?.score) match.score = parsed.score;
+  if (parsed && parsed.rows.length > 0) {
+    match.lines = parsed.rows.map((row) => ({
+      playerId: row.playerId,
+      points: row.stats.points ?? 0,
+      ...row.stats,
+    }));
+  }
+  updateMatch(match);
+}
+
 app.post('/api/admin/matches/:id/stat-sheet/recognize', (req, res, next) => {
   void (async () => {
     const match = getMatch(req.params.id);
     if (!match?.leagueId) throw new ApiError(404, '比赛不存在');
-    if (!match.statSheetTemplate) throw new ApiError(400, '请先上传并保存本场比赛的空白技术统计表模板');
-    if (!match.home || !match.away) throw new ApiError(400, '请先确定本场主队和客队');
+    const league = requireLeague(match.leagueId);
+    if (!canEditLeague(league, sessionName(req))) {
+      throw new ApiError(403, `这个联赛由 ${league.createdBy} 创建，只有创建者可以上传技术统计`);
+    }
     const image = typeof req.body?.image === 'string' ? req.body.image : '';
     if (!image) throw new ApiError(400, '请选择技术统计表照片');
     const comparisonScore = scoreOf(req.body?.score, '比分') ?? match.score;
@@ -708,40 +799,157 @@ app.post('/api/admin/matches/:id/stat-sheet/recognize', (req, res, next) => {
       throw new ApiError(400, error instanceof Error ? error.message : '技术统计表无法保存');
     }
 
+    if (match.sport === 'basketball') {
+      try {
+        statSheet.scoresheet = await extractFibaSheet(match.id, statSheetPath(match.id));
+        finishMatchWithSheet(match, statSheet);
+        res.json({ recognized: false, statSheet, rows: [], unmatchedRows: [], warnings: [] });
+      } catch (error) {
+        finishMatchWithSheet(match, statSheet);
+        res.json({
+          recognized: false,
+          statSheet,
+          rows: [],
+          unmatchedRows: [],
+          warnings: [],
+          alignError: error instanceof Error ? error.message : '表格没对齐',
+        });
+      }
+      return;
+    }
+
+    const template = match.statSheetTemplate;
+    const canRecognize = Boolean(template && match.home && match.away);
+    if (!canRecognize) {
+      finishMatchWithSheet(match, statSheet);
+      const warnings = [
+        template ? '主客队还没定，照片已留档。' : '还没有空白模板，照片已留档，没有自动识别。',
+        '比赛已记为结束。',
+      ];
+      res.json({ recognized: false, statSheet, rows: [], unmatchedRows: [], warnings });
+      return;
+    }
+
     try {
       const all = teamsOf(match.leagueId);
       const teams = [all.find((team) => team.id === match.home), all.find((team) => team.id === match.away)].filter(
         (team): team is Team => Boolean(team),
       );
       if (teams.length !== 2) throw new Error('本场球队或名单不存在');
-      const parsed = await recognizeFilledStatSheet(
-        match.id,
-        image,
-        match.statSheetTemplate,
-        match.sport,
-        teams,
-        comparisonScore,
-      );
+      const parsed = await recognizeFilledStatSheet(match.id, image, template!, match.sport, teams, comparisonScore);
       statSheet = {
         ...statSheet,
         recognizedAt: parsed.engine ? new Date().toISOString() : undefined,
         ocrEngine: parsed.engine,
       };
+      finishMatchWithSheet(match, statSheet, parsed);
       res.json({
         recognized: parsed.rows.length > 0,
         statSheet,
         ...parsed,
       });
     } catch (error) {
+      finishMatchWithSheet(match, statSheet);
       res.json({
         recognized: false,
         statSheet,
         rows: [],
         unmatchedRows: [],
-        warnings: [`照片已留档，但 OCR 识别失败：${error instanceof Error ? error.message : '未知错误'}`],
+        warnings: [`照片已留档，比赛已记为结束。识别失败：${error instanceof Error ? error.message : '未知错误'}`],
       });
     }
   })().catch(next);
+});
+
+function statSheetPath(matchId: string): string {
+  return resolve('data/uploads/matches', `${matchId}-stats.jpg`);
+}
+
+function editableMatch(req: Request<{ id: string }>): Match {
+  const match = getMatch(req.params.id);
+  if (!match?.leagueId) throw new ApiError(404, '比赛不存在');
+  const league = requireLeague(match.leagueId);
+  if (!canEditLeague(league, sessionName(req))) {
+    throw new ApiError(403, `这个联赛由 ${league.createdBy} 创建，只有创建者可以修改技术统计`);
+  }
+  return match;
+}
+
+/** 重新切格。corners 是原图像素坐标（顺序不限），不传就自动找外框。 */
+app.post('/api/admin/matches/:id/stat-sheet/align', (req, res, next) => {
+  void (async () => {
+    const match = editableMatch(req);
+    if (!match.statSheet) throw new ApiError(400, '请先上传技术统计表');
+    let corners: number[] | undefined;
+    if (req.body?.corners != null) {
+      corners = Array.isArray(req.body.corners) ? req.body.corners.map(Number) : [];
+      if (corners!.length !== 8 || corners!.some((value) => !Number.isFinite(value) || value < 0)) {
+        throw new ApiError(400, '请在照片上点四个角');
+      }
+    }
+    try {
+      match.statSheet = { ...match.statSheet, scoresheet: await extractFibaSheet(match.id, statSheetPath(match.id), corners) };
+    } catch (error) {
+      if (error instanceof FibaSheetError) throw new ApiError(400, error.message);
+      throw error;
+    }
+    updateMatch(match);
+    res.json({ statSheet: match.statSheet });
+  })().catch(next);
+});
+
+/** 保存逐格确认的球衣号，按累积分重算个人得分并写入比赛。 */
+app.put('/api/admin/matches/:id/stat-sheet/review', (req, res) => {
+  const match = editableMatch(req);
+  const sheet = match.statSheet?.scoresheet;
+  if (!match.statSheet || !sheet) throw new ApiError(400, '这场比赛还没有切好格的记录表');
+  if (!match.home || !match.away) throw new ApiError(400, '主客队还没定，不能写入得分');
+  const homeSide = req.body?.homeSide;
+  if (homeSide !== 'A' && homeSide !== 'B') throw new ApiError(400, '请先选择主队是 A 队还是 B 队');
+  const rawJerseys = req.body?.jerseys;
+  if (!rawJerseys || typeof rawJerseys !== 'object' || Array.isArray(rawJerseys)) {
+    throw new ApiError(400, '号码格式不对');
+  }
+  const validKeys = new Set(sheet.cells.map((cell) => `${cell.side}:${cell.total}`));
+  const jerseys: Record<string, string> = {};
+  for (const [key, value] of Object.entries(rawJerseys as Record<string, unknown>)) {
+    if (!validKeys.has(key)) continue;
+    const text = typeof value === 'string' ? value.trim() : '';
+    if (text && !/^\d{1,3}$/.test(text)) throw new ApiError(400, `累计分 ${key.split(':')[1]} 的号码只能是数字`);
+    jerseys[key] = text;
+  }
+
+  const all = teamsOf(match.leagueId!);
+  const teamOf = (side: SheetSide) => all.find((team) => team.id === (side === homeSide ? match.home : match.away));
+  const sides = { A: teamOf('A'), B: teamOf('B') };
+  if (!sides.A || !sides.B) throw new ApiError(400, '本场球队不存在');
+  const marks: ScoreMark[] = Object.entries(jerseys).map(([key, jersey]) => {
+    const [side, total] = key.split(':');
+    return { side: side as SheetSide, total: Number(total), jersey };
+  });
+  const rosterOf = (side: SheetSide) => (sides[side]!.players ?? []).map((player) => player.number);
+  const tally = tallyMarks(marks, { A: rosterOf('A'), B: rosterOf('B') });
+
+  const previous = new Map((match.lines ?? []).map((line) => [line.playerId, line]));
+  const lines = new Map(previous);
+  for (const side of ['A', 'B'] as const) {
+    for (const player of sides[side]!.players ?? []) {
+      const points = tally.points[pointsKey(side, player.number)];
+      const line = previous.get(player.id);
+      if (points === undefined && !line) continue;
+      lines.set(player.id, { ...(line ?? { playerId: player.id }), points: points ?? 0 });
+    }
+  }
+  match.lines = [...lines.values()];
+  match.score = homeSide === 'A' ? { home: tally.totals.A, away: tally.totals.B } : { home: tally.totals.B, away: tally.totals.A };
+  match.status = 'finished';
+  match.statSheet = {
+    ...match.statSheet,
+    scoresheet: { ...sheet, homeSide, jerseys, reviewedAt: new Date().toISOString() },
+  };
+  updateMatch(match);
+  const samples = saveDigitSamples(match.id, match.statSheet.scoresheet!);
+  res.json({ match, warnings: tally.warnings, samples });
 });
 
 app.delete('/api/admin/matches/:id', (req, res) => {
@@ -773,9 +981,12 @@ app.post('/api/admin/teams/:id/players', (req, res) => {
     name: text(req.body?.name, '姓名'),
     number,
     position: '',
+    school: '',
+    college: '',
     gender: '' as const,
     height: '',
     weight: '',
+    avatar: '',
   };
   try {
     insertPlayer(player);
@@ -790,6 +1001,7 @@ app.post('/api/admin/teams/:id/players', (req, res) => {
 
 app.delete('/api/admin/players/:id', (req, res) => {
   if (!deletePlayer(req.params.id)) throw new ApiError(404, '队员不存在');
+  clearPlayerAvatar(req.params.id);
   res.json({ ok: true });
 });
 

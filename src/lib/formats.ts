@@ -70,6 +70,13 @@ function stageFor(matchCount: number): Stage {
   return 'F';
 }
 
+/** 勾选几支队伍，就用刚好装得下的签表。4 队是 4 签，不是 8 签。 */
+export function fitBracketSize(teamCount: number): 4 | 8 | 16 {
+  if (teamCount <= 4) return 4;
+  if (teamCount <= 8) return 8;
+  return 16;
+}
+
 function assertPowerOfTwo(size: number, label: string): void {
   if (![2, 4, 8, 16].includes(size)) throw new Error(`${label}只支持 2、4、8、16 个签位`);
 }

@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type {
   League,
+  LeagueLevel,
   Match,
   MatchStatSheet,
   MatchStatSheetTemplate,
@@ -13,6 +14,7 @@ import type {
   Sport,
   Team,
 } from '../src/types.ts';
+import { isLeagueLevel } from '../src/types.ts';
 
 const file = resolve('data/league.db');
 mkdirSync(dirname(file), { recursive: true });
@@ -60,7 +62,8 @@ db.exec(`
   );
   CREATE TABLE IF NOT EXISTS sessions (
     token TEXT PRIMARY KEY,
-    expires_at INTEGER NOT NULL
+    expires_at INTEGER NOT NULL,
+    name TEXT NOT NULL DEFAULT ''
   );
   CREATE TABLE IF NOT EXISTS player_sessions (
     token TEXT PRIMARY KEY,
@@ -81,6 +84,14 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_teams_league ON teams(league_id);
   CREATE INDEX IF NOT EXISTS idx_matches_league ON matches(league_id);
   CREATE INDEX IF NOT EXISTS idx_players_team ON players(team_id);
+  CREATE TABLE IF NOT EXISTS digit_samples (
+    id TEXT PRIMARY KEY,
+    match_id TEXT NOT NULL,
+    label TEXT NOT NULL,
+    image_path TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_digit_samples_match ON digit_samples(match_id);
 `);
 
 const matchColumns = db.prepare('PRAGMA table_info(matches)').all() as { name: string }[];
@@ -101,7 +112,7 @@ if (!playerColumns.some((column) => column.name === 'class_name')) {
 if (!playerColumns.some((column) => column.name === 'number')) {
   db.exec("ALTER TABLE players ADD COLUMN number TEXT NOT NULL DEFAULT ''");
 }
-for (const column of ['position', 'gender', 'height', 'weight']) {
+for (const column of ['position', 'gender', 'height', 'weight', 'school', 'college', 'avatar']) {
   if (!playerColumns.some((item) => item.name === column)) {
     db.exec(`ALTER TABLE players ADD COLUMN ${column} TEXT NOT NULL DEFAULT ''`);
   }
@@ -131,6 +142,22 @@ const leagueColumns = db.prepare('PRAGMA table_info(leagues)').all() as { name: 
 if (!leagueColumns.some((column) => column.name === 'logo')) {
   db.exec("ALTER TABLE leagues ADD COLUMN logo TEXT NOT NULL DEFAULT ''");
 }
+if (!leagueColumns.some((column) => column.name === 'level')) {
+  db.exec("ALTER TABLE leagues ADD COLUMN level TEXT NOT NULL DEFAULT 'friendly'");
+  db.exec("UPDATE leagues SET level = 'school' WHERE name LIKE '%校级%'");
+  db.exec("UPDATE leagues SET level = 'college' WHERE name LIKE '%院级%'");
+}
+if (!leagueColumns.some((column) => column.name === 'created_by')) {
+  db.exec("ALTER TABLE leagues ADD COLUMN created_by TEXT NOT NULL DEFAULT ''");
+}
+if (!leagueColumns.some((column) => column.name === 'published')) {
+  db.exec('ALTER TABLE leagues ADD COLUMN published INTEGER NOT NULL DEFAULT 1');
+}
+
+const sessionColumns = db.prepare('PRAGMA table_info(sessions)').all() as { name: string }[];
+if (!sessionColumns.some((column) => column.name === 'name')) {
+  db.exec("ALTER TABLE sessions ADD COLUMN name TEXT NOT NULL DEFAULT ''");
+}
 
 export function transaction<T>(fn: () => T): T {
   db.exec('BEGIN');
@@ -150,6 +177,9 @@ interface LeagueRow {
   name: string;
   season: string;
   logo: string;
+  level: string;
+  created_by: string;
+  published: number;
   created_at: string;
 }
 
@@ -192,7 +222,17 @@ const json = (value: unknown) => (value == null ? null : JSON.stringify(value));
 const parse = <T>(value: string | null): T | undefined => (value ? (JSON.parse(value) as T) : undefined);
 
 function toLeague(row: LeagueRow): League {
-  return { id: row.id, sport: row.sport as Sport, name: row.name, season: row.season, logo: row.logo ?? '' };
+  const level: LeagueLevel = isLeagueLevel(row.level) ? row.level : 'friendly';
+  return {
+    id: row.id,
+    sport: row.sport as Sport,
+    name: row.name,
+    season: row.season,
+    level,
+    logo: row.logo ?? '',
+    createdBy: row.created_by ?? '',
+    published: row.published !== 0,
+  };
 }
 
 function toTeam(row: TeamRow): Team {
@@ -239,9 +279,10 @@ function count(sql: string, arg?: string): number {
   return Number(row.n);
 }
 
-export function listLeagues(sport?: string): LeagueSummary[] {
+export function listLeagues(sport?: string, publishedOnly = false): LeagueSummary[] {
   const rows = db.prepare('SELECT * FROM leagues ORDER BY created_at, id').all() as unknown as LeagueRow[];
   return rows
+    .filter((row) => !publishedOnly || row.published !== 0)
     .filter((row) => !sport || row.sport === sport)
     .map((row) => ({
       ...toLeague(row),
@@ -272,6 +313,9 @@ interface PlayerRow {
   gender?: string | null;
   height?: string | null;
   weight?: string | null;
+  school?: string | null;
+  college?: string | null;
+  avatar?: string | null;
 }
 
 function toPlayer(row: PlayerRow): Player {
@@ -279,6 +323,8 @@ function toPlayer(row: PlayerRow): Player {
   return {
     id: row.id,
     teamId: row.team_id,
+    school: row.school ?? '',
+    college: row.college ?? '',
     className: row.class_name,
     name: row.name,
     number: row.number,
@@ -286,6 +332,7 @@ function toPlayer(row: PlayerRow): Player {
     gender,
     height: row.height ?? '',
     weight: row.weight ?? '',
+    avatar: row.avatar ?? '',
   };
 }
 
@@ -302,10 +349,12 @@ export function withPlayers(teams: Team[]): Team[] {
 
 export function insertPlayer(player: Player): void {
   db.prepare(
-    'INSERT INTO players (id, team_id, class_name, name, number, position, gender, height, weight) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO players (id, team_id, school, college, class_name, name, number, position, gender, height, weight, avatar) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   ).run(
     player.id,
     player.teamId,
+    player.school || '',
+    player.college || '',
     player.className,
     player.name,
     player.number,
@@ -313,13 +362,26 @@ export function insertPlayer(player: Player): void {
     player.gender || '',
     player.height || '',
     player.weight || '',
+    player.avatar || '',
   );
 }
 
 export function updatePlayer(player: Player): void {
   db.prepare(
-    'UPDATE players SET class_name = ?, name = ?, number = ?, position = ?, gender = ?, height = ?, weight = ? WHERE id = ?',
-  ).run(player.className, player.name, player.number, player.position, player.gender, player.height, player.weight, player.id);
+    'UPDATE players SET school = ?, college = ?, class_name = ?, name = ?, number = ?, position = ?, gender = ?, height = ?, weight = ?, avatar = ? WHERE id = ?',
+  ).run(
+    player.school || '',
+    player.college || '',
+    player.className,
+    player.name,
+    player.number,
+    player.position,
+    player.gender,
+    player.height,
+    player.weight,
+    player.avatar || '',
+    player.id,
+  );
 }
 
 export interface PlayerAccount {
@@ -336,6 +398,7 @@ interface AccountRow extends PlayerRow {
   league_name: string;
   league_sport: string;
   league_season: string;
+  league_level: string;
 }
 
 function toAccount(row: AccountRow): PlayerAccount {
@@ -348,13 +411,21 @@ function toAccount(row: AccountRow): PlayerAccount {
       short: row.team_short,
       color: row.team_color,
     },
-    league: { id: row.league_id, sport: row.league_sport as Sport, name: row.league_name, season: row.league_season },
+    league: {
+      id: row.league_id,
+      sport: row.league_sport as Sport,
+      name: row.league_name,
+      season: row.league_season,
+      level: isLeagueLevel(row.league_level) ? row.league_level : 'friendly',
+      createdBy: '',
+      published: true,
+    },
   };
 }
 
 const accountSql = `
   SELECT players.*, teams.name AS team_name, teams.short AS team_short, teams.color AS team_color,
-         teams.league_id AS league_id, leagues.name AS league_name, leagues.sport AS league_sport, leagues.season AS league_season
+         teams.league_id AS league_id, leagues.name AS league_name, leagues.sport AS league_sport, leagues.season AS league_season, leagues.level AS league_level
   FROM players
   JOIN teams ON teams.id = players.team_id
   JOIN leagues ON leagues.id = teams.league_id
@@ -392,18 +463,31 @@ export function leagueCount(): number {
 }
 
 export function insertLeague(league: League): void {
-  db.prepare('INSERT INTO leagues (id, sport, name, season, logo, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
+  db.prepare(
+    'INSERT INTO leagues (id, sport, name, season, level, logo, created_by, published, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  ).run(
     league.id,
     league.sport,
     league.name,
     league.season,
+    league.level,
     league.logo ?? '',
+    league.createdBy,
+    league.published ? 1 : 0,
     new Date().toISOString(),
   );
 }
 
-export function updateLeague(id: string, name: string, season: string, logo: string): void {
-  db.prepare('UPDATE leagues SET name = ?, season = ?, logo = ? WHERE id = ?').run(name, season, logo, id);
+export function updateLeague(id: string, name: string, season: string, level: LeagueLevel, logo: string, createdBy: string, published: boolean): void {
+  db.prepare('UPDATE leagues SET name = ?, season = ?, level = ?, logo = ?, created_by = ?, published = ? WHERE id = ?').run(
+    name,
+    season,
+    level,
+    logo,
+    createdBy,
+    published ? 1 : 0,
+    id,
+  );
 }
 
 export function deleteLeague(id: string): void {
@@ -506,6 +590,28 @@ export function removeMatch(id: string): void {
   db.prepare('UPDATE matches SET next_match_id = NULL, next_slot = NULL WHERE next_match_id = ?').run(id);
   db.prepare('UPDATE matches SET loser_next_match_id = NULL, loser_next_slot = NULL WHERE loser_next_match_id = ?').run(id);
   db.prepare('DELETE FROM matches WHERE id = ?').run(id);
+}
+
+export interface DigitSample {
+  id: string;
+  label: string;
+  imagePath: string;
+}
+
+/** 替换一场比赛的手写号码样本，返回被替换掉的旧图片路径。 */
+export function replaceDigitSamples(matchId: string, samples: DigitSample[]): string[] {
+  return transaction(() => {
+    const old = db.prepare('SELECT image_path FROM digit_samples WHERE match_id = ?').all(matchId) as {
+      image_path: string;
+    }[];
+    db.prepare('DELETE FROM digit_samples WHERE match_id = ?').run(matchId);
+    const insert = db.prepare(
+      'INSERT INTO digit_samples (id, match_id, label, image_path, created_at) VALUES (?, ?, ?, ?, ?)',
+    );
+    const now = new Date().toISOString();
+    for (const sample of samples) insert.run(sample.id, matchId, sample.label, sample.imagePath, now);
+    return old.map((row) => row.image_path);
+  });
 }
 
 export function deleteMatch(id: string): void {

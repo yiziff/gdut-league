@@ -52,8 +52,34 @@ npm run dev
 | `FORM_VLM_API_URL` | 空 | 推荐：支持图片输入的 OpenAI 兼容接口，用于比较空白模板和赛后表 |
 | `FORM_VLM_API_KEY` | 空 | 表单视觉模型接口密钥；本地服务可留空 |
 | `FORM_VLM_MODEL` | 空 | 表单视觉模型名称 |
+| `FIBA_PYTHON` | `.venv-ocr/bin/python` | 运行 `scripts/fiba_sheet.py` 的 Python，需要装 OpenCV 和 numpy |
 
-## 动态技术统计表识别
+## 篮球：FIBA 记录表算个人得分
+
+篮球比赛统一使用 FIBA 标准记录表，不调用收费服务：
+
+1. 在比赛编辑页的「技术统计」上传填好的记录表照片，比赛自动记为已结束；
+2. `scripts/fiba_sheet.py` 找到表格外框并拉正，按 `server/fiba/layout.json` 定位累积分区格线，只切出写了字的号码格；
+3. 核对页先选表上 A 队是哪一队，再逐格填球衣号（点名单号码，或输入号码回车，没写号码点「空」）；
+4. 每次得分 = 这格累计分减去本队上一个写了号码的格子，按号码加总得到个人得分，并和表底最后比分对账；
+5. 点「确认写入得分」，个人得分和比分写入比赛，确认过的格子存为样本（`data/digit-samples/<号码>/`，`digit_samples` 表），留给以后训练本机手写数字识别。
+
+拍照要求：表格外框四个角都要拍进去，尽量正对、光线均匀。自动切格失败时，可以在原图上手点外框四个角重试。
+
+依赖：
+
+```bash
+python3 -m venv .venv-ocr
+.venv-ocr/bin/pip install opencv-python-headless numpy
+```
+
+换了记录表版式时，用空白表重新标定：
+
+```bash
+.venv-ocr/bin/python scripts/fiba_sheet.py calibrate 空白表.jpg server/fiba/layout.json server/fiba/blank.jpg
+```
+
+## 动态技术统计表识别（其他项目）
 
 模板不写死在代码中，每场比赛可以使用不同表格：
 

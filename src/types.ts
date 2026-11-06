@@ -1,4 +1,15 @@
 export type Sport = 'basketball' | 'football' | 'badminton' | 'volleyball' | 'tabletennis';
+export type LeagueLevel = 'school' | 'college' | 'friendly';
+
+export const LEAGUE_LEVELS: { id: LeagueLevel; label: string }[] = [
+  { id: 'school', label: '校级' },
+  { id: 'college', label: '院级' },
+  { id: 'friendly', label: '友谊赛' },
+];
+
+export function isLeagueLevel(value: string): value is LeagueLevel {
+  return LEAGUE_LEVELS.some((item) => item.id === value);
+}
 export type Division = 'men' | 'women' | 'mixed';
 export type Stage = 'group' | 'R16' | 'QF' | 'SF' | 'F' | '3rd';
 export type MatchStatus = 'scheduled' | 'live' | 'finished';
@@ -9,13 +20,20 @@ export interface League {
   sport: Sport;
   name: string;
   season: string;
+  level: LeagueLevel;
   /** 创建时上传的标志，站内路径。没有则为空字符串 */
   logo?: string;
+  /** 登录管理后台时填写的名字。旧数据可能为空 */
+  createdBy: string;
+  /** 上线后出现在前台。创建者上线后仍可改联赛资料 */
+  published: boolean;
 }
 
 export interface Player {
   id: string;
   teamId: string;
+  school: string;
+  college: string;
   className: string;
   name: string;
   number: string;
@@ -23,14 +41,16 @@ export interface Player {
   gender: '' | 'male' | 'female';
   height: string;
   weight: string;
+  /** 头像路径。没有则为空字符串 */
+  avatar?: string;
 }
 
 /** 一场比赛里某名球员的数据；项目只使用模板中实际存在的字段。 */
 export interface PlayerLine {
   playerId: string;
   points: number;
-  rebounds: number;
-  assists: number;
+  rebounds?: number;
+  assists?: number;
   twoPointsMade?: number;
   twoPointsAttempted?: number;
   threePointsMade?: number;
@@ -74,12 +94,32 @@ export interface MatchStatSheetTemplate {
   warnings: string[];
 }
 
+/** FIBA 记录表累积分区里写了字的一格。side 为表上的 A/B 队，不是主客队。 */
+export interface FibaScoreCell {
+  side: 'A' | 'B';
+  total: number;
+  imageUrl: string;
+}
+
+/** FIBA 记录表切格结果，以及管理员逐格确认的球衣号。 */
+export interface FibaScoresheet {
+  alignedUrl: string;
+  finalUrl: string;
+  cells: FibaScoreCell[];
+  /** 主队在表上是 A 队还是 B 队 */
+  homeSide?: 'A' | 'B';
+  /** key 为 `${side}:${total}`，值为球衣号；空字符串表示这格没写号码 */
+  jerseys?: Record<string, string>;
+  reviewedAt?: string;
+}
+
 /** 纸质技术统计表的留档信息；OCR 结果仍需管理员确认后才写入 lines。 */
 export interface MatchStatSheet {
   imageUrl: string;
   uploadedAt: string;
   recognizedAt?: string;
   ocrEngine?: string;
+  scoresheet?: FibaScoresheet;
 }
 
 export interface Team {

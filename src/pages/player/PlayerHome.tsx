@@ -12,6 +12,11 @@ export default function PlayerHome() {
   return (
     <div className="space-y-8">
       <section className="hero-panel px-5 py-7 sm:px-8">
+        {profile?.player.avatar ? (
+          <div className="hero-portrait" aria-hidden="true">
+            <img src={profile.player.avatar} alt="" />
+          </div>
+        ) : null}
         <span className="absolute top-0 left-0 h-1 w-24 bg-player-500" aria-hidden="true" />
         <p className="text-xs font-semibold tracking-[0.16em] text-white/75 uppercase">Player center</p>
         <h1 className="mt-2 text-2xl font-bold tracking-tight text-white">{profile ? `${profile.player.name}，你好` : '球员中心'}</h1>

@@ -42,7 +42,7 @@ export default function LeagueLayout() {
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div>
             <p className="eyebrow mb-3">{meta.name}</p>
-            <h1 className="page-title">{found.league.name}</h1>
+            <h1 className={`page-title league-level-${found.league.level}`}>{found.league.name}</h1>
             {found.league.season && <p className="masthead-copy mt-3 text-sm">{found.league.season}</p>}
           </div>
           <dl className="flex divide-x divide-white/15 text-sm">

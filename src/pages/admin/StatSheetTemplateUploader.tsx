@@ -15,12 +15,16 @@ const KIND_LABEL: Record<MatchStatSheetTemplate['kind'], string> = {
 export default function StatSheetTemplateUploader({
   template,
   draftImage,
+  saving,
+  saveError,
   onImage,
   onRemove,
   onTemplateChange,
 }: {
   template?: MatchStatSheetTemplate;
   draftImage: string;
+  saving: boolean;
+  saveError: string;
   onImage: (image: string) => void;
   onRemove: () => void;
   onTemplateChange: (template: MatchStatSheetTemplate) => void;
@@ -63,29 +67,40 @@ export default function StatSheetTemplateUploader({
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <label className="btn-secondary cursor-pointer">
-          {reading ? '正在处理模板…' : preview ? '更换模板' : '上传空白模板'}
+          {reading ? '正在读取图片…' : preview ? '更换图片' : '选择空白模板'}
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp,image/*"
             capture="environment"
             onChange={(event) => void chooseImage(event)}
-            disabled={reading}
+            disabled={reading || saving}
             className="sr-only"
           />
         </label>
+        {draftImage && (
+          <button type="submit" className="btn-primary" disabled={saving}>
+            {saving ? '正在上传…' : '上传这张模板'}
+          </button>
+        )}
         {preview && (
-          <button type="button" onClick={onRemove} className="text-xs font-medium text-red-600">
+          <button type="button" onClick={onRemove} className="text-xs font-medium text-red-600" disabled={saving}>
             移除模板
           </button>
         )}
       </div>
 
       {draftImage && (
-        <p className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
-          新模板已选择。保存比赛时后台会分析字段，首次分析可能需要几分钟。
+        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+          还没有上传成功。图片只在当前页面，点「上传这张模板」保存到这场比赛后，才会显示已上传。
+        </p>
+      )}
+      {template?.imageUrl && !draftImage && (
+        <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-800">
+          模板已上传到这场比赛。可以继续上传填好的技术统计。
         </p>
       )}
       {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
+      {draftImage && saveError && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{saveError}</p>}
       {preview && (
         <img
           src={preview}

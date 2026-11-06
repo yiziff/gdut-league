@@ -26,6 +26,7 @@ interface RecognitionResponse {
   unmatchedRows: UnmatchedStatRow[];
   warnings: string[];
   score?: Score;
+  alignError?: string;
 }
 
 export interface StatSheetRecognition {
@@ -40,9 +41,11 @@ export default function StatSheetScanner({
   statSheet,
   score,
   hasExistingStats,
+  fiba = false,
   onResult,
 }: {
   matchId?: string;
+  fiba?: boolean;
   template?: MatchStatSheetTemplate;
   statSheet?: MatchStatSheet;
   score?: Score;
@@ -63,6 +66,35 @@ export default function StatSheetScanner({
     setNotice('');
   }, [matchId]);
 
+  async function upload(dataUrl: string) {
+    if (!matchId) return;
+    if (hasExistingStats && !window.confirm('重新上传会覆盖已经填入的技术统计，仍要继续吗？')) return;
+    setRecognizing(true);
+    setWarnings([]);
+    setUnmatched([]);
+    setNotice('');
+    try {
+      const result = await api<RecognitionResponse>(`/api/admin/matches/${matchId}/stat-sheet/recognize`, {
+        method: 'POST',
+        body: JSON.stringify({ image: dataUrl, score }),
+      });
+      setWarnings(result.alignError ? [...result.warnings, result.alignError] : result.warnings);
+      setUnmatched(result.unmatchedRows);
+      setNotice(
+        result.recognized
+          ? `已上传，比赛已记为结束，并匹配 ${result.rows.length} 名球员。`
+          : result.statSheet.scoresheet
+            ? `已上传，比赛已记为结束。切出 ${result.statSheet.scoresheet.cells.length} 个写了字的格子，请在下面确认号码。`
+            : '已上传，比赛已记为结束。',
+      );
+      onResult({ statSheet: result.statSheet, rows: result.rows, score: result.score });
+    } catch (error) {
+      setWarnings([error instanceof Error ? error.message : '上传失败']);
+    } finally {
+      setRecognizing(false);
+    }
+  }
+
   async function chooseImage(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -72,38 +104,13 @@ export default function StatSheetScanner({
     setUnmatched([]);
     setNotice('');
     try {
-      setImage(await readStatSheetFile(file));
+      const dataUrl = await readStatSheetFile(file);
+      setImage(dataUrl);
+      await upload(dataUrl);
     } catch (error) {
       setWarnings([error instanceof Error ? error.message : '图片无法读取']);
     } finally {
       setReading(false);
-    }
-  }
-
-  async function recognize() {
-    if (!matchId || !template || !image) return;
-    if (hasExistingStats && !window.confirm('识别结果会覆盖已识别到的同名字段，仍要继续吗？')) return;
-    setRecognizing(true);
-    setWarnings([]);
-    setUnmatched([]);
-    setNotice('');
-    try {
-      const result = await api<RecognitionResponse>(`/api/admin/matches/${matchId}/stat-sheet/recognize`, {
-        method: 'POST',
-        body: JSON.stringify({ image, score }),
-      });
-      setWarnings(result.warnings);
-      setUnmatched(result.unmatchedRows);
-      setNotice(
-        result.recognized
-          ? `已匹配 ${result.rows.length} 名球员。请逐项核对，再点击“保存修改”。`
-          : '照片已留档，但没有自动填入数据；可对照照片人工录入。',
-      );
-      onResult({ statSheet: result.statSheet, rows: result.rows, score: result.score });
-    } catch (error) {
-      setWarnings([error instanceof Error ? error.message : '识别失败']);
-    } finally {
-      setRecognizing(false);
     }
   }
 
@@ -113,9 +120,9 @@ export default function StatSheetScanner({
     <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-navy-950">拍照识别技术统计表</p>
+          <p className="text-sm font-semibold text-navy-950">技术统计表</p>
           <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">
-            使用与上方空白模板相同的表格，正对整张表拍摄。后台会结合模板识别；结果不会自动生效，必须核对后保存。
+            上传填好的技术统计表。上传成功后，这场比赛会自动记为已结束。
           </p>
         </div>
         {statSheet?.imageUrl && (
@@ -126,13 +133,11 @@ export default function StatSheetScanner({
       </div>
 
       {!matchId ? (
-        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">请先保存这场比赛，再回来上传统计表。</p>
-      ) : !template ? (
-        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">请先上传空白技术统计表模板并保存比赛。</p>
+        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">请先保存这场比赛，再上传技术统计。</p>
       ) : (
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <label className="btn-secondary cursor-pointer">
-            {reading ? '正在处理图片…' : image ? '重拍 / 换图' : '拍照或选择图片'}
+          <label className="btn-primary cursor-pointer">
+            {reading || recognizing ? '正在上传…' : image || statSheet?.imageUrl ? '重新上传技术统计' : '上传技术统计'}
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp,image/*"
@@ -142,9 +147,8 @@ export default function StatSheetScanner({
               className="sr-only"
             />
           </label>
-          <button type="button" className="btn-primary" disabled={!image || reading || recognizing} onClick={() => void recognize()}>
-            {recognizing ? '正在识别，可能需要几分钟…' : '识别并填入'}
-          </button>
+          {!template && !fiba && <span className="text-xs text-slate-400">没有空白模板时只留档，不自动填表。</span>}
+          {fiba && <span className="text-xs text-slate-400">FIBA 标准记录表：上传后逐格确认号码，自动算个人得分。</span>}
         </div>
       )}
 

@@ -1,27 +1,29 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
-import { planFormat, type FormatPreset } from '../../lib/formats';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
+import { fitBracketSize, planFormat, type FormatPreset } from '../../lib/formats';
 import { readLogoFile } from '../../lib/logoFile';
 import { DIVISION_LABEL, DIVISION_ORDER, SPORT_MAP, STAGE_LABEL } from '../../sports';
 import { useDataState } from '../../data/store';
-import type {
-  Division,
-  League,
-  Match,
-  MatchStatSheet,
-  MatchStatSheetTemplate,
-  MatchStatus,
-  Player,
-  PlayerLine,
-  PlayerStatKey,
-  Side,
-  Stage,
-  Team,
-} from '../../types';
 import { statFieldsForTemplate } from '../../lib/statSheetTemplate';
+import {
+  LEAGUE_LEVELS,
+  type Division,
+  type League,
+  type Match,
+  type MatchStatSheet,
+  type MatchStatSheetTemplate,
+  type MatchStatus,
+  type Player,
+  type PlayerLine,
+  type PlayerStatKey,
+  type Side,
+  type Stage,
+  type Team,
+} from '../../types';
 import { clockOf, dateOf, formatDate } from '../../lib/format';
-import AdminGate from './AdminGate';
+import AdminGate, { useAdminActor } from './AdminGate';
 import { api, ApiError } from './api';
+import FibaReview from './FibaReview';
 import StatSheetScanner, { type StatSheetRecognition } from './StatSheetScanner';
 import StatSheetTemplateUploader from './StatSheetTemplateUploader';
 
@@ -185,8 +187,11 @@ function downloadRosterTemplate(): void {
 }
 
 function LeagueAdminBody() {
+  const actor = useAdminActor();
   const { leagueId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const createdByFlash = (location.state as { createdBy?: string } | null)?.createdBy;
   const { reload } = useDataState();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [missing, setMissing] = useState(false);
@@ -199,7 +204,7 @@ function LeagueAdminBody() {
   const [preset, setPreset] = useState<FormatPreset>('groups_knockout');
   const [groupCount, setGroupCount] = useState(4);
   const [qualifiers, setQualifiers] = useState(2);
-  const [bracketSize, setBracketSize] = useState(8);
+  const [bracketSize, setBracketSize] = useState(4);
   const [thirdPlace, setThirdPlace] = useState(true);
   const [division, setDivision] = useState<Division>('men');
   const [startDate, setStartDate] = useState('');
@@ -208,12 +213,18 @@ function LeagueAdminBody() {
   const [playerDrafts, setPlayerDrafts] = useState<Record<string, PlayerDraft>>({});
   const [playerErrors, setPlayerErrors] = useState<Record<string, string>>({});
   const [savingPlayerFor, setSavingPlayerFor] = useState<string | null>(null);
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState(createdByFlash ? `联赛已创建，创建者是 ${createdByFlash}。` : '');
+  const [savingMatch, setSavingMatch] = useState(false);
   const [logoDraft, setLogoDraft] = useState<string | null>(null);
   const [rosterText, setRosterText] = useState('');
   const [importing, setImporting] = useState(false);
   const [form, setForm] = useState<MatchForm>(blankMatch);
   const [selected, setSelected] = useState<string[]>([]);
+  const fittedSlots = fitBracketSize(picked.length);
+
+  useEffect(() => {
+    setBracketSize(fittedSlots);
+  }, [fittedSlots]);
 
   async function refresh() {
     try {
@@ -246,6 +257,7 @@ function LeagueAdminBody() {
   const started = form.status !== 'scheduled';
   const scoreName =
     league.sport === 'football' ? '进球' : league.sport === 'volleyball' ? '局数' : league.sport === 'basketball' ? '得分' : '胜场';
+  const ownsLeague = !league.createdBy || league.createdBy === actor;
 
   async function run(action: () => Promise<void>) {
     setError('');
@@ -260,17 +272,20 @@ function LeagueAdminBody() {
   async function saveLeague(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    const body: { name: FormDataEntryValue | null; season: FormDataEntryValue | null; logo?: string } = {
+    const body: { name: FormDataEntryValue | null; season: FormDataEntryValue | null; level: FormDataEntryValue | null; logo?: string } = {
       name: data.get('name'),
       season: data.get('season'),
+      level: data.get('level'),
     };
     if (logoDraft !== null) body.logo = logoDraft;
+    const uploadedLogo = logoDraft !== null && logoDraft !== '';
     await run(async () => {
       await api(`/api/admin/leagues/${league.id}`, {
         method: 'PATCH',
         body: JSON.stringify(body),
       });
       setLogoDraft(null);
+      setNotice(uploadedLogo ? '联赛资料已保存，图标已上传。' : '联赛资料已保存。');
     });
   }
 
@@ -374,12 +389,7 @@ function LeagueAdminBody() {
               return players.flatMap((player) => {
                 const row = form.lines[player.id];
                 if (!row || !matchFields.some((field) => row[field.key]?.trim())) return [];
-                const line: PlayerLine = {
-                  playerId: player.id,
-                  points: Number(row.points || 0),
-                  rebounds: Number(row.rebounds || 0),
-                  assists: Number(row.assists || 0),
-                };
+                const line: PlayerLine = { playerId: player.id, points: Number(row.points || 0) };
                 for (const field of matchFields) {
                   const value = row[field.key]?.trim();
                   if (value !== undefined && value !== '') line[field.key] = Number(value);
@@ -396,11 +406,23 @@ function LeagueAdminBody() {
       loserNextMatchId: form.loserNextMatchId || null,
       loserNextSlot: form.loserNextSlot || null,
     };
+    const uploadingTemplate = Boolean(form.statSheetTemplateImage);
+    const editing = Boolean(form.id);
+    setSavingMatch(true);
     await run(async () => {
-      if (form.id) await api(`/api/admin/matches/${form.id}`, { method: 'PATCH', body: JSON.stringify(body) });
-      else await api(`/api/admin/leagues/${league.id}/matches`, { method: 'POST', body: JSON.stringify(body) });
-      setForm(blankMatch());
+      const saved = editing
+        ? await api<Match>(`/api/admin/matches/${form.id}`, { method: 'PATCH', body: JSON.stringify(body) })
+        : await api<Match>(`/api/admin/leagues/${league.id}/matches`, { method: 'POST', body: JSON.stringify(body) });
+      setForm(editing ? toForm(saved) : blankMatch());
+      setNotice(
+        uploadingTemplate
+          ? '空白模板已上传到这场比赛。'
+          : editing
+            ? '这场比赛已保存。'
+            : '比赛已添加。',
+      );
     });
+    setSavingMatch(false);
   }
 
   async function addPlayer(event: FormEvent, team: Team) {
@@ -505,7 +527,7 @@ function LeagueAdminBody() {
       },
     }));
 
-  const applyRecognition = (result: StatSheetRecognition) =>
+  const applyRecognition = (result: StatSheetRecognition) => {
     setForm((current) => {
       const lines = { ...current.lines };
       for (const row of result.rows) {
@@ -517,12 +539,15 @@ function LeagueAdminBody() {
       }
       return {
         ...current,
+        status: 'finished',
         statSheet: result.statSheet,
         lines,
         scoreHome: result.score ? String(result.score.home) : current.scoreHome,
         scoreAway: result.score ? String(result.score.away) : current.scoreAway,
       };
     });
+    void refresh();
+  };
 
   return (
     <div>
@@ -533,44 +558,108 @@ function LeagueAdminBody() {
         <div>
           <p className="eyebrow">{meta.name} · {detail.league.season || '当前赛季'}</p>
           <h1 className="page-title mt-1">{detail.league.name}</h1>
+          <p className="mt-2 text-sm text-slate-500">
+            {detail.league.createdBy ? `创建者 ${detail.league.createdBy}` : '创建者未记录'}
+            {' · '}
+            {detail.league.published ? '已上线' : '未上线，前台还看不到'}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link to={`/${detail.league.sport}/${detail.league.id}/schedule`} className="btn-secondary">
-            前台查看
-          </Link>
-          <button
-            className="btn-danger"
-            onClick={() => {
-              if (!window.confirm(`删除「${detail.league.name}」？`)) return;
-              void (async () => {
-                try {
-                  await api(`/api/admin/leagues/${detail.league.id}`, { method: 'DELETE' });
-                  await reload();
-                  navigate('/admin');
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : '删除失败');
-                }
-              })();
-            }}
-          >
-            删除联赛
-          </button>
+          {detail.league.published ? (
+            <Link to={`/${detail.league.sport}/${detail.league.id}/schedule`} className="btn-secondary">
+              前台查看
+            </Link>
+          ) : null}
+          {ownsLeague && (
+            <button
+              className="btn-secondary"
+              onClick={() =>
+                void run(() =>
+                  api(`/api/admin/leagues/${detail.league.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                      name: detail.league.name,
+                      season: detail.league.season,
+                      level: detail.league.level,
+                      published: !detail.league.published,
+                    }),
+                  }),
+                )
+              }
+            >
+              {detail.league.published ? '下线' : '上线'}
+            </button>
+          )}
+          {ownsLeague && !detail.league.createdBy && (
+            <button
+              className="btn-secondary"
+              onClick={() =>
+                void run(() =>
+                  api(`/api/admin/leagues/${detail.league.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                      name: detail.league.name,
+                      season: detail.league.season,
+                      level: detail.league.level,
+                      claim: true,
+                    }),
+                  }),
+                )
+              }
+            >
+              记到我名下
+            </button>
+          )}
+          {ownsLeague && (
+            <button
+              className="btn-danger"
+              onClick={() => {
+                if (!window.confirm(`删除「${detail.league.name}」？`)) return;
+                void (async () => {
+                  try {
+                    await api(`/api/admin/leagues/${detail.league.id}`, { method: 'DELETE' });
+                    await reload();
+                    navigate('/admin');
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : '删除失败');
+                  }
+                })();
+              }}
+            >
+              删除联赛
+            </button>
+          )}
         </div>
       </div>
       {error && <p className="mb-4 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       {notice && <p className="mb-4 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{notice}</p>}
 
       <form onSubmit={(event) => void saveLeague(event)} className="surface mb-10 flex flex-wrap items-end gap-4 p-4">
+        <p className="w-full text-sm text-slate-500">
+          {ownsLeague
+            ? '上线之后，名称、赛季、级别和图标仍然由创建者修改。'
+            : `这个联赛由 ${detail.league.createdBy} 创建。上线之后只有创建者可以改这些资料。`}
+        </p>
         <label className="text-sm font-medium text-slate-700">
           名称
-          <input name="name" defaultValue={detail.league.name} key={detail.league.name} className={inputClass} />
+          <input name="name" defaultValue={detail.league.name} key={detail.league.name} className={inputClass} disabled={!ownsLeague} />
         </label>
         <label className="text-sm font-medium text-slate-700">
           赛季
-          <input name="season" defaultValue={detail.league.season} key={detail.league.season} className={inputClass} />
+          <input name="season" defaultValue={detail.league.season} key={detail.league.season} className={inputClass} disabled={!ownsLeague} />
         </label>
         <label className="text-sm font-medium text-slate-700">
-          Logo
+          级别
+          <select name="level" defaultValue={detail.league.level} key={detail.league.level} className={inputClass} disabled={!ownsLeague}>
+            {LEAGUE_LEVELS.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm font-medium text-slate-700">
+          联赛图标
           <span className="mt-1.5 flex items-center gap-3">
             {(logoDraft ?? league.logo) ? (
               <img src={logoDraft ?? league.logo} alt="" className="h-12 w-12 rounded-lg object-cover" />
@@ -579,6 +668,7 @@ function LeagueAdminBody() {
               type="file"
               accept="image/png,image/jpeg,image/webp"
               className="text-sm text-slate-600"
+              disabled={!ownsLeague}
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (!file) return;
@@ -593,8 +683,15 @@ function LeagueAdminBody() {
               </button>
             ) : null}
           </span>
+          {logoDraft ? (
+            <span className="mt-2 block text-xs text-amber-800">图标已选好，还没上传。点右边的「保存」才会记到这个联赛上。</span>
+          ) : league.logo ? (
+            <span className="mt-2 block text-xs text-emerald-700">图标已保存在这个联赛上。</span>
+          ) : (
+            <span className="mt-2 block text-xs text-slate-400">还没有图标。</span>
+          )}
         </label>
-        <button className="btn-primary">保存</button>
+        {ownsLeague && <button className="btn-primary">保存</button>}
       </form>
 
       <section className="mb-10">
@@ -856,7 +953,7 @@ function LeagueAdminBody() {
                 ['round_robin', '单循环', '勾选的队伍互相比一场'],
                 ['double_round_robin', '双循环', '每对队伍主客场各一场'],
                 ['groups_knockout', '小组赛 + 淘汰赛', '分组循环后按名次排淘汰赛签表'],
-                ['single_elim', '单败淘汰', '按 4、8 或 16 签排对阵，签位可以先空着'],
+                ['single_elim', '单败淘汰', '按勾选的队伍排签。4 队就是 4 签，报名没齐再加大'],
               ] as [FormatPreset, string, string][]
             ).map(([value, label, help]) => (
               <label key={value} className={`rounded-lg border px-3 py-2 text-sm ${preset === value ? 'border-gdut-800 bg-gdut-800 text-white' : 'border-slate-200'}`}>
@@ -907,11 +1004,13 @@ function LeagueAdminBody() {
               <label className="text-sm text-slate-600">
                 签位
                 <select value={bracketSize} onChange={(event) => setBracketSize(Number(event.target.value))} className={inputClass}>
-                  {[4, 8, 16].map((count) => (
-                    <option key={count} value={count}>
-                      {count} 签
-                    </option>
-                  ))}
+                  {[4, 8, 16]
+                    .filter((count) => count >= fittedSlots)
+                    .map((count) => (
+                      <option key={count} value={count}>
+                        {count === fittedSlots ? `${count} 签` : `${count} 签，空 ${count - picked.length} 位`}
+                      </option>
+                    ))}
                 </select>
               </label>
             )}
@@ -1034,26 +1133,51 @@ function LeagueAdminBody() {
           <StatSheetTemplateUploader
             template={form.statSheetTemplate}
             draftImage={form.statSheetTemplateImage}
+            saving={savingMatch}
+            saveError={form.statSheetTemplateImage ? error : ''}
             onImage={(image) => set({ statSheetTemplateImage: image })}
             onRemove={() => set({ statSheetTemplate: undefined, statSheetTemplateImage: '', statSheet: undefined })}
             onTemplateChange={(template) => set({ statSheetTemplate: template })}
           />
-          {form.status === 'finished' && (
-            <div className="mt-4">
-              <h3 className="text-sm font-medium">技术统计</h3>
-              <p className="mt-1 text-xs text-slate-400">留空的球员不会写入。OCR 只是录入草稿，请以纸质记录和记分台确认为准。</p>
-              <StatSheetScanner
+          <div className="mt-4">
+            <h3 className="text-sm font-medium">技术统计</h3>
+            <p className="mt-1 text-xs text-slate-400">上传技术统计表后，这场比赛会自动记为已结束。留空的球员不会写入。</p>
+            <StatSheetScanner
+              matchId={form.id}
+              template={form.statSheetTemplateImage ? undefined : form.statSheetTemplate}
+              statSheet={form.statSheet}
+              score={
+                form.scoreHome !== '' && form.scoreAway !== ''
+                  ? { home: Number(form.scoreHome), away: Number(form.scoreAway) }
+                  : undefined
+              }
+              hasExistingStats={Object.values(form.lines).some((line) => Object.values(line).some((value) => value?.trim()))}
+              fiba={league.sport === 'basketball'}
+              onResult={applyRecognition}
+            />
+            {league.sport === 'basketball' && form.id && form.statSheet && (
+              <FibaReview
                 matchId={form.id}
-                template={form.statSheetTemplateImage ? undefined : form.statSheetTemplate}
                 statSheet={form.statSheet}
-                score={
-                  form.scoreHome !== '' && form.scoreAway !== ''
-                    ? { home: Number(form.scoreHome), away: Number(form.scoreAway) }
-                    : undefined
+                home={detail.teams.find((team) => team.id === form.home)}
+                away={detail.teams.find((team) => team.id === form.away)}
+                onSheet={(statSheet) => set({ statSheet })}
+                onSaved={(match) =>
+                  applyRecognition({
+                    statSheet: match.statSheet!,
+                    score: match.score,
+                    rows: (match.lines ?? []).map((line) => ({
+                      playerId: line.playerId,
+                      teamId: '',
+                      number: '',
+                      name: '',
+                      stats: { points: line.points },
+                    })),
+                  })
                 }
-                hasExistingStats={Object.values(form.lines).some((line) => Object.values(line).some((value) => value?.trim()))}
-                onResult={applyRecognition}
               />
+            )}
+            {form.status === 'finished' && (
               <div className={`mt-3 grid gap-4 ${matchFields.length > 3 ? '' : 'lg:grid-cols-2'}`}>
                 {[form.home, form.away].map((teamId, index) => {
                   const team = detail.teams.find((item) => item.id === teamId);
@@ -1069,8 +1193,8 @@ function LeagueAdminBody() {
                   );
                 })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
           <details className="mt-3">
             <summary className="cursor-pointer text-sm text-slate-500">{league.sport === 'football' ? '晋级、点球、弃权' : '晋级、弃权'}</summary>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -1144,7 +1268,9 @@ function LeagueAdminBody() {
             </div>
           </details>
           <div className="mt-4 flex gap-3">
-            <button className="btn-primary">{form.id ? '保存修改' : '添加比赛'}</button>
+            <button className="btn-primary" disabled={savingMatch}>
+              {savingMatch ? '正在保存…' : form.statSheetTemplateImage ? '上传模板并保存比赛' : form.id ? '保存修改' : '添加比赛'}
+            </button>
             {form.id && (
               <button type="button" className="text-sm text-slate-500" onClick={() => setForm(blankMatch())}>
                 取消编辑

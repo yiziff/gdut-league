@@ -10,8 +10,8 @@ const teams: Team[] = [
     short: '计算机',
     color: '#000',
     players: [
-      { id: 'h10', teamId: 'home', className: '1班', name: '张三', number: '10', position: '', gender: '', height: '', weight: '' },
-      { id: 'h11', teamId: 'home', className: '1班', name: '李四', number: '11', position: '', gender: '', height: '', weight: '' },
+      { id: 'h10', teamId: 'home', className: '1班', name: '张三', number: '10', position: '', school: '', college: '', gender: '', height: '', weight: '' },
+      { id: 'h11', teamId: 'home', className: '1班', name: '李四', number: '11', position: '', school: '', college: '', gender: '', height: '', weight: '' },
     ],
   },
   {
@@ -21,8 +21,8 @@ const teams: Team[] = [
     short: '机电',
     color: '#fff',
     players: [
-      { id: 'a10', teamId: 'away', className: '2班', name: '王五', number: '10', position: '', gender: '', height: '', weight: '' },
-      { id: 'a12', teamId: 'away', className: '2班', name: '赵六', number: '12', position: '', gender: '', height: '', weight: '' },
+      { id: 'a10', teamId: 'away', className: '2班', name: '王五', number: '10', position: '', school: '', college: '', gender: '', height: '', weight: '' },
+      { id: 'a12', teamId: 'away', className: '2班', name: '赵六', number: '12', position: '', school: '', college: '', gender: '', height: '', weight: '' },
     ],
   },
 ];
@@ -85,6 +85,19 @@ describe('parseBasketballStatSheet', () => {
     expect(parsed.warnings).toContain('第 2 个表格未识别出队名，已按主队、客队顺序匹配。');
   });
 
+  it('matches a one-character misspelling and reads the final score by team name', () => {
+    const source = `
+      计算机学院
+      | 号码 | 姓名 | 得分 | 犯规 |
+      | --- | --- | --- | --- |
+      |  | 张三丰 | 14 | 2 |
+      最后比分 机电工程学院=8 计算机学院=14
+    `;
+    const parsed = parseBasketballStatSheet(source, teams);
+    expect(parsed.rows[0]).toMatchObject({ playerId: 'h10', stats: { points: 14, fouls: 2 } });
+    expect(parsed.score).toEqual({ home: 14, away: 8 });
+  });
+
   it('keeps unknown players out of the draft and reports them', () => {
     const source = `
       | 球队 | 号码 | 姓名 | 得分 | 犯规 |
@@ -95,6 +108,18 @@ describe('parseBasketballStatSheet', () => {
     expect(parsed.rows).toEqual([]);
     expect(parsed.unmatchedRows).toHaveLength(1);
     expect(parsed.warnings).toContain('有 1 行未能匹配球员，请检查号码、姓名和队员名单。');
+  });
+
+  it('does not invent player points from a FIBA running-score sheet', () => {
+    const source = `
+      国际篮球联合会记录表
+      A队 沙步社区 B队 中央公园
+      累积分
+      这是 FIBA 跑分记录表。格子里的红笔号码没有自动换算成个人得分。
+    `;
+    const parsed = parseBasketballStatSheet(source, teams);
+    expect(parsed.rows).toEqual([]);
+    expect(parsed.warnings[0]).toContain('FIBA 跑分记录表');
   });
 
   it('discovers the semantics of a FIBA-style blank template', () => {

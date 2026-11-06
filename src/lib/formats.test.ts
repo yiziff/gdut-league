@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planFormat, seedOrder } from './formats';
+import { fitBracketSize, planFormat, seedOrder } from './formats';
 
 const ids = () => {
   let n = 0;
@@ -16,6 +16,16 @@ const base = {
   bracketSize: 8,
   thirdPlace: true,
 };
+
+describe('fitBracketSize', () => {
+  it('uses the smallest draw that holds the selected teams', () => {
+    expect(fitBracketSize(0)).toBe(4);
+    expect(fitBracketSize(4)).toBe(4);
+    expect(fitBracketSize(5)).toBe(8);
+    expect(fitBracketSize(8)).toBe(8);
+    expect(fitBracketSize(9)).toBe(16);
+  });
+});
 
 describe('seedOrder', () => {
   it('pairs the top seed with the bottom seed', () => {

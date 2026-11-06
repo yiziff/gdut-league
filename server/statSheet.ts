@@ -164,7 +164,7 @@ function markdownFromResponse(body: unknown): string {
 }
 
 /** 调用 PaddleOCR / PaddleX 的 POST /layout-parsing 服务。 */
-export async function recognizeStatSheet(dataUrl: string): Promise<string> {
+export async function recognizeStatSheet(dataUrl: string, teams: Team[] = []): Promise<string> {
   const endpoint = ocrEndpoint();
   if (!endpoint) throw new Error('尚未配置 OCR_SERVICE_URL');
   const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
@@ -179,11 +179,16 @@ export async function recognizeStatSheet(dataUrl: string): Promise<string> {
     body: JSON.stringify({
       file: base64,
       fileType: 1,
-      useDocOrientationClassify: true,
-      useDocUnwarping: true,
-      useTextlineOrientation: true,
+      useDocOrientationClassify: false,
+      useDocUnwarping: false,
+      useTextlineOrientation: false,
       useChartRecognition: false,
       visualize: false,
+      teams: teams.slice(0, 2).map((team) => ({
+        name: team.name,
+        short: team.short,
+        numbers: (team.players ?? []).map((player) => player.number),
+      })),
     }),
     signal: AbortSignal.timeout(Number.isFinite(timeout) && timeout > 0 ? timeout : 180_000),
   });
@@ -354,16 +359,15 @@ export async function analyzeStatSheetTemplateImage(
       const analysis = analyzeTemplateOcrText(source, sport);
       return { ...analysis, warnings: [...failures, ...analysis.warnings], engine: ocrEngineName() };
     } catch (error) {
-      failures.push(`PaddleOCR 模板分析失败：${error instanceof Error ? error.message : '未知错误'}`);
+      failures.push(`${ocrEngineName()} 模板分析失败：${error instanceof Error ? error.message : '未知错误'}`);
     }
   }
   return {
     kind: 'generic',
     fields: [],
-    warnings: [
-      ...failures,
-      '模板已保存，但没有可用的模板识别服务。配置 FORM_VLM_API_URL 或 OCR_SERVICE_URL 后重新上传即可分析字段。',
-    ],
+    warnings: failures.length
+      ? failures
+      : ['模板已保存，但没有可用的模板识别服务。配置 FORM_VLM_API_URL 或 OCR_SERVICE_URL 后重新上传即可分析字段。'],
   };
 }
 
@@ -710,6 +714,40 @@ function teamFromText(value: string, teams: Team[]): Team | undefined {
   return matched.length === 1 ? matched[0] : undefined;
 }
 
+function sharedCharacters(left: string, right: string): number {
+  const pool = new Map<string, number>();
+  for (const char of right) pool.set(char, (pool.get(char) ?? 0) + 1);
+  let count = 0;
+  for (const char of left) {
+    const remaining = pool.get(char) ?? 0;
+    if (remaining <= 0) continue;
+    pool.set(char, remaining - 1);
+    count += 1;
+  }
+  return count;
+}
+
+function nameDistance(left: string, right: string): number {
+  const a = [...left];
+  const b = [...right];
+  const row = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i += 1) {
+    let previous = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const current = row[j];
+      row[j] = a[i - 1] === b[j - 1] ? previous : Math.min(previous, row[j], row[j - 1]) + 1;
+      previous = current;
+    }
+  }
+  return row[b.length];
+}
+
+function closeName(rowName: string, playerName: string): boolean {
+  if (rowName.length < 2 || playerName.length < 2) return false;
+  return sharedCharacters(rowName, playerName) >= 2 && nameDistance(rowName, playerName) <= 1;
+}
+
 function playerMatches(row: RawStatRow, teams: Team[], teamHint?: Team) {
   const candidates = (teamHint ? [teamHint] : teams).flatMap((team) =>
     (team.players ?? []).map((player) => ({ team, player })),
@@ -722,11 +760,15 @@ function playerMatches(row: RawStatRow, teams: Team[], teamHint?: Team) {
   if (name) {
     const exactFromNumber = byNumber.filter(({ player }) => normalizedName(player.name) === name);
     if (exactFromNumber.length === 1) return exactFromNumber[0];
+    const closeFromNumber = byNumber.filter(({ player }) => closeName(name, normalizedName(player.name)));
+    if (closeFromNumber.length === 1) return closeFromNumber[0];
   }
   if (byNumber.length === 1) return byNumber[0];
   if (name) {
     const byName = candidates.filter(({ player }) => normalizedName(player.name) === name);
     if (byName.length === 1) return byName[0];
+    const byCloseName = candidates.filter(({ player }) => closeName(name, normalizedName(player.name)));
+    if (byCloseName.length === 1) return byCloseName[0];
   }
   return undefined;
 }
@@ -806,7 +848,12 @@ export function parseBasketballStatSheet(
   const seen = new Set<string>();
 
   if (tables.length === 0) {
-    return { rows: [], unmatchedRows: [], warnings: ['没有从图片中解析出表格，请手工录入或重新拍摄。'] };
+    const text = plainText(source);
+    const warning =
+      /累积分|国际篮球联合会记录表|跑分/.test(text)
+        ? '这是 FIBA 跑分记录表。格子里的红笔号码无法可靠换算成个人得分，没有自动写入，请在技术统计里按名单手工填写。'
+        : '没有从图片中解析出表格，请手工录入或重新拍摄。';
+    return { rows: [], unmatchedRows: [], warnings: [warning] };
   }
 
   tables.forEach((table, tableIndex) => {
@@ -849,13 +896,15 @@ export function parseBasketballStatSheet(
   if (result.length === 0) warnings.push('识别到了表格，但没有任何行能与本场球员名单匹配。');
   if (unmatchedRows.length > 0) warnings.push(`有 ${unmatchedRows.length} 行未能匹配球员，请检查号码、姓名和队员名单。`);
   for (const row of result) warnings.push(...rowWarnings(row));
+  const scoreFromSheet = finalScoreFromSource(source, teams);
 
-  if (score) {
+  const compared = scoreFromSheet ?? score;
+  if (compared) {
     teams.slice(0, 2).forEach((team, index) => {
       const rows = result.filter((row) => row.teamId === team.id && row.stats.points !== undefined);
       if (rows.length === 0) return;
       const sum = rows.reduce((total, row) => total + (row.stats.points ?? 0), 0);
-      const expected = index === 0 ? score.home : score.away;
+      const expected = index === 0 ? compared.home : compared.away;
       if (sum !== expected) warnings.push(`${team.name}已识别球员得分合计 ${sum}，与比赛比分 ${expected} 不一致。`);
     });
   }
@@ -864,7 +913,22 @@ export function parseBasketballStatSheet(
     rows: result,
     unmatchedRows: unmatchedRows.slice(0, 40),
     warnings: [...new Set(warnings)].slice(0, 40),
+    score: scoreFromSheet,
   };
+}
+
+function finalScoreFromSource(source: string, teams: Team[]): Score | undefined {
+  const matched = /最后比分\s+(\S+?)=(\d{1,3})\s+(\S+?)=(\d{1,3})/.exec(plainText(source));
+  if (!matched || teams.length < 2) return undefined;
+  const pairs = [
+    { team: teamFromText(matched[1], teams), points: Number(matched[2]) },
+    { team: teamFromText(matched[3], teams), points: Number(matched[4]) },
+  ];
+  if (!pairs[0].team || !pairs[1].team || pairs[0].team.id === pairs[1].team.id) return undefined;
+  const home = pairs.find((pair) => pair.team?.id === teams[0].id);
+  const away = pairs.find((pair) => pair.team?.id === teams[1].id);
+  if (!home || !away) return undefined;
+  return { home: home.points, away: away.points };
 }
 
 export function parseTemplateStatSheet(
@@ -1008,19 +1072,18 @@ export async function recognizeFilledStatSheet(
   }
   if (ocrIsConfigured()) {
     try {
-      const source = await recognizeStatSheet(filledImage);
+      const source = await recognizeStatSheet(filledImage, teams);
       const parsed = parseTemplateStatSheet(source, teams, template, score);
       return { ...parsed, warnings: [...failures, ...parsed.warnings], engine: ocrEngineName() };
     } catch (error) {
-      failures.push(`PaddleOCR 识别失败：${error instanceof Error ? error.message : '未知错误'}`);
+      failures.push(`${ocrEngineName()} 识别失败：${error instanceof Error ? error.message : '未知错误'}`);
     }
   }
   return {
     rows: [],
     unmatchedRows: [],
-    warnings: [
-      ...failures,
-      '赛后照片已留档，但没有可用的识别服务。配置 FORM_VLM_API_URL 或 OCR_SERVICE_URL 后重新识别。',
-    ],
+    warnings: failures.length
+      ? failures
+      : ['赛后照片已留档，但没有可用的识别服务。配置 FORM_VLM_API_URL 或 OCR_SERVICE_URL 后重新识别。'],
   };
 }

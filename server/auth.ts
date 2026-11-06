@@ -14,10 +14,10 @@ export function passwordOk(input: string): boolean {
   return timingSafeEqual(a, b);
 }
 
-export function createSession(): string {
+export function createSession(name: string): string {
   const token = randomBytes(32).toString('hex');
   const expires = Math.floor(Date.now() / 1000) + WEEK;
-  db.prepare('INSERT INTO sessions (token, expires_at) VALUES (?, ?)').run(token, expires);
+  db.prepare('INSERT INTO sessions (token, expires_at, name) VALUES (?, ?, ?)').run(token, expires, name);
   return token;
 }
 
@@ -38,15 +38,31 @@ function readCookie(req: Request): string | undefined {
   return readNamedCookie(req, COOKIE);
 }
 
-export function sessionValid(req: Request): boolean {
+function sessionRow(req: Request): { name: string; expires_at: number } | undefined {
   const token = readCookie(req);
-  if (!token) return false;
-  const row = db.prepare('SELECT expires_at FROM sessions WHERE token = ?').get(token) as { expires_at: number } | undefined;
+  if (!token) return undefined;
+  const row = db.prepare('SELECT name, expires_at FROM sessions WHERE token = ?').get(token) as
+    | { name: string; expires_at: number }
+    | undefined;
   if (!row || row.expires_at < Date.now() / 1000) {
     destroySession(token);
-    return false;
+    return undefined;
   }
-  return true;
+  return row;
+}
+
+export function sessionValid(req: Request): boolean {
+  return sessionRow(req) !== undefined;
+}
+
+export function sessionName(req: Request): string {
+  return sessionRow(req)?.name ?? '';
+}
+
+export function renameSession(req: Request, name: string): boolean {
+  const token = readCookie(req);
+  if (!token || !sessionValid(req)) return false;
+  return db.prepare('UPDATE sessions SET name = ? WHERE token = ?').run(name, token).changes > 0;
 }
 
 export function setSessionCookie(res: Response, token: string): void {

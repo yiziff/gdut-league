@@ -119,6 +119,38 @@
     @apply flex items-center gap-2 text-[11px] font-bold tracking-[0.18em] text-[#c45c22] uppercase;
   }
 
+  .team-tag {
+    @apply inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium transition;
+    border: 1px solid var(--tone-200);
+    background: var(--tone-50);
+    color: var(--tone-700);
+  }
+
+  .team-tag:hover {
+    border-color: var(--tone-300);
+    background: #fff;
+  }
+
+  .team-row {
+    mask-image: linear-gradient(90deg, #000 calc(100% - 3rem), transparent);
+  }
+
+  .nav-player {
+    @apply shrink-0 bg-transparent px-0.5 py-5 text-[13px] font-medium text-[#e08a3c] transition;
+    filter:
+      drop-shadow(0 0 3px rgb(255 168 80 / 90%))
+      drop-shadow(0 0 8px rgb(255 146 56 / 55%));
+    animation: nav-player-in 0.28s ease;
+  }
+
+  .nav-player:hover,
+  .nav-player-on {
+    color: #d46a30;
+    filter:
+      drop-shadow(0 0 4px rgb(255 156 64 / 95%))
+      drop-shadow(0 0 12px rgb(255 132 40 / 60%));
+  }
+
   .eyebrow::before {
     @apply block h-px w-5 bg-[#e08a3c];
     content: '';
@@ -231,6 +263,36 @@
 
   .hero-panel > * {
     @apply relative z-10;
+  }
+
+  /* 球员中心：头像收在框内，边缘化进同一层橙色 */
+  .hero-panel > .hero-portrait {
+    position: absolute;
+    z-index: 0;
+    top: 50%;
+    right: 6%;
+    height: 128%;
+    aspect-ratio: 1;
+    transform: translateY(-50%);
+    overflow: hidden;
+    border-radius: 999px;
+    pointer-events: none;
+    mask-image: radial-gradient(circle, black 16%, transparent 68%);
+  }
+
+  .hero-portrait img {
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
+    opacity: 0.72;
+    filter: saturate(0.6);
+  }
+
+  .hero-portrait::after {
+    position: absolute;
+    inset: 0;
+    content: '';
+    background: linear-gradient(100deg, #c45c22 0%, rgb(196 92 34 / 62%) 48%, rgb(176 78 28 / 28%) 100%);
   }
 
   /* 首页「正在进行」：比亮橙收一点，比深橘亮一点，斜向渐变能看出来 */
@@ -545,6 +607,58 @@
     letter-spacing: -0.02em;
   }
 
+  .league-level-mark {
+    @apply shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tracking-wide;
+  }
+
+  .league-level-school {
+    color: #8a5a16;
+    text-shadow: 0 0 8px rgb(255 208 96 / 80%), 0 0 16px rgb(232 176 60 / 38%);
+  }
+
+  .league-level-college {
+    color: #66707c;
+    text-shadow: 0 0 8px rgb(226 232 238 / 95%), 0 0 16px rgb(176 186 198 / 55%);
+  }
+
+  .league-level-friendly {
+    color: #a85a34;
+    text-shadow: 0 0 8px rgb(255 186 140 / 40%), 0 0 14px rgb(255 160 110 / 22%);
+  }
+
+  .league-level-mark.league-level-school,
+  .league-level-mark.league-level-college,
+  .league-level-mark.league-level-friendly {
+    background: rgb(255 255 255 / 72%);
+  }
+
+  .page-masthead .league-level-school {
+    color: #fff8e6;
+    text-shadow: 0 0 10px rgb(255 214 120 / 90%), 0 0 22px rgb(255 190 70 / 45%);
+  }
+
+  .page-masthead .league-level-college {
+    color: #f4f7fa;
+    text-shadow: 0 0 10px rgb(230 236 242 / 95%), 0 0 22px rgb(190 200 212 / 55%);
+  }
+
+  .page-masthead .league-level-friendly {
+    color: #fff;
+    text-shadow: 0 0 10px rgb(255 196 150 / 55%), 0 0 18px rgb(255 170 120 / 30%);
+  }
+
+  .league-title.league-level-school {
+    filter: drop-shadow(0 0 6px rgb(255 206 90 / 55%));
+  }
+
+  .league-title.league-level-college {
+    filter: drop-shadow(0 0 6px rgb(210 218 226 / 70%));
+  }
+
+  .league-title.league-level-friendly {
+    filter: drop-shadow(0 0 6px rgb(255 176 120 / 35%));
+  }
+
   .sport-index {
     border: 1px solid var(--tone-200);
     background: var(--tone-50);
@@ -566,6 +680,12 @@
     border: 1px solid var(--tone-200);
     background: #fff;
     box-shadow: 0 6px 14px -8px var(--tone-700);
+  }
+
+  .league-face {
+    @apply h-11 w-11 shrink-0 rounded-full object-cover;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px var(--tone-200), 0 8px 16px -10px var(--tone-700);
   }
 
   /* 项目页：白底，只在角落留一层很淡的项目色 */
@@ -645,9 +765,22 @@
   }
 }
 
+@keyframes nav-player-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .league-title,
-  .sport-masthead {
+  .sport-masthead,
+  .nav-player {
     animation: none;
   }
 }

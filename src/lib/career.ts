@@ -47,8 +47,8 @@ export function summarizeCareer(teamId: string, playerId: string, matches: Match
     if (!line) continue;
     recorded = true;
     points += line.points;
-    rebounds += line.rebounds;
-    assists += line.assists;
+    rebounds += line.rebounds ?? 0;
+    assists += line.assists ?? 0;
   }
 
   let streak = 0;
