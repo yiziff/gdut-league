@@ -4,11 +4,26 @@ import { planFormat, type FormatPreset } from '../../lib/formats';
 import { readLogoFile } from '../../lib/logoFile';
 import { DIVISION_LABEL, DIVISION_ORDER, SPORT_MAP, STAGE_LABEL } from '../../sports';
 import { useDataState } from '../../data/store';
-import type { Division, League, Match, MatchStatus, Player, Side, Stage, Team } from '../../types';
-import { STAT_FIELDS } from '../../lib/playerStats';
+import type {
+  Division,
+  League,
+  Match,
+  MatchStatSheet,
+  MatchStatSheetTemplate,
+  MatchStatus,
+  Player,
+  PlayerLine,
+  PlayerStatKey,
+  Side,
+  Stage,
+  Team,
+} from '../../types';
+import { statFieldsForTemplate } from '../../lib/statSheetTemplate';
 import { clockOf, dateOf, formatDate } from '../../lib/format';
 import AdminGate from './AdminGate';
 import { api, ApiError } from './api';
+import StatSheetScanner, { type StatSheetRecognition } from './StatSheetScanner';
+import StatSheetTemplateUploader from './StatSheetTemplateUploader';
 
 interface Detail {
   league: League;
@@ -38,7 +53,10 @@ interface MatchForm {
   nextSlot: '' | Side;
   loserNextMatchId: string;
   loserNextSlot: '' | Side;
-  lines: Record<string, { points: string; rebounds: string; assists: string }>;
+  lines: Record<string, Partial<Record<PlayerStatKey, string>>>;
+  statSheet?: MatchStatSheet;
+  statSheetTemplate?: MatchStatSheetTemplate;
+  statSheetTemplateImage: string;
 }
 
 interface PlayerDraft {
@@ -80,6 +98,7 @@ function blankMatch(): MatchForm {
     loserNextMatchId: '',
     loserNextSlot: '',
     lines: {},
+    statSheetTemplateImage: '',
   };
 }
 
@@ -107,8 +126,18 @@ function toForm(match: Match): MatchForm {
     loserNextMatchId: match.loserNextMatchId ?? '',
     loserNextSlot: match.loserNextSlot ?? '',
     lines: Object.fromEntries(
-      (match.lines ?? []).map((line) => [line.playerId, { points: String(line.points), rebounds: String(line.rebounds), assists: String(line.assists) }]),
+      (match.lines ?? []).map((line) => [
+        line.playerId,
+        Object.fromEntries(
+          statFieldsForTemplate(match.sport, match.statSheetTemplate).flatMap((field) =>
+            line[field.key] === undefined ? [] : [[field.key, String(line[field.key])]],
+          ),
+        ),
+      ]),
     ),
+    statSheet: match.statSheet,
+    statSheetTemplate: match.statSheetTemplate,
+    statSheetTemplateImage: '',
   };
 }
 
@@ -208,6 +237,7 @@ function LeagueAdminBody() {
   if (!detail) return <p className="py-12 text-center text-slate-400">加载中…</p>;
   const view = detail;
   const league = view.league;
+  const matchFields = statFieldsForTemplate(league.sport, form.statSheetTemplate);
 
   const meta = SPORT_MAP[league.sport];
   const teamNameOf = (id: string | null) => detail.teams.find((team) => team.id === id)?.short ?? '待定';
@@ -343,11 +373,24 @@ function LeagueAdminBody() {
               const players = view.teams.find((team) => team.id === teamId)?.players ?? [];
               return players.flatMap((player) => {
                 const row = form.lines[player.id];
-                if (!row || !STAT_FIELDS[league.sport].some((field) => row[field.key].trim() !== '')) return [];
-                return [{ playerId: player.id, points: Number(row.points || 0), rebounds: Number(row.rebounds || 0), assists: Number(row.assists || 0) }];
+                if (!row || !matchFields.some((field) => row[field.key]?.trim())) return [];
+                const line: PlayerLine = {
+                  playerId: player.id,
+                  points: Number(row.points || 0),
+                  rebounds: Number(row.rebounds || 0),
+                  assists: Number(row.assists || 0),
+                };
+                for (const field of matchFields) {
+                  const value = row[field.key]?.trim();
+                  if (value !== undefined && value !== '') line[field.key] = Number(value);
+                }
+                return [line];
               });
             })
           : null,
+      statSheet: form.statSheet ?? null,
+      statSheetTemplate: form.statSheetTemplate ?? null,
+      statSheetTemplateImage: form.statSheetTemplateImage || undefined,
       nextMatchId: form.nextMatchId || null,
       nextSlot: form.nextSlot || null,
       loserNextMatchId: form.loserNextMatchId || null,
@@ -450,19 +493,36 @@ function LeagueAdminBody() {
   }
 
   const set = (patch: Partial<MatchForm>) => setForm((current) => ({ ...current, ...patch }));
-  const setLine = (playerId: string, key: 'points' | 'rebounds' | 'assists', value: string) =>
+  const setLine = (playerId: string, key: PlayerStatKey, value: string) =>
     setForm((current) => ({
       ...current,
       lines: {
         ...current.lines,
         [playerId]: {
-          points: current.lines[playerId]?.points ?? '',
-          rebounds: current.lines[playerId]?.rebounds ?? '',
-          assists: current.lines[playerId]?.assists ?? '',
+          ...(current.lines[playerId] ?? {}),
           [key]: value,
         },
       },
     }));
+
+  const applyRecognition = (result: StatSheetRecognition) =>
+    setForm((current) => {
+      const lines = { ...current.lines };
+      for (const row of result.rows) {
+        const next = { ...(lines[row.playerId] ?? {}) };
+        for (const [key, value] of Object.entries(row.stats) as [PlayerStatKey, number][]) {
+          next[key] = String(value);
+        }
+        lines[row.playerId] = next;
+      }
+      return {
+        ...current,
+        statSheet: result.statSheet,
+        lines,
+        scoreHome: result.score ? String(result.score.home) : current.scoreHome,
+        scoreAway: result.score ? String(result.score.away) : current.scoreAway,
+      };
+    });
 
   return (
     <div>
@@ -971,11 +1031,30 @@ function LeagueAdminBody() {
               </label>
             )}
           </div>
+          <StatSheetTemplateUploader
+            template={form.statSheetTemplate}
+            draftImage={form.statSheetTemplateImage}
+            onImage={(image) => set({ statSheetTemplateImage: image })}
+            onRemove={() => set({ statSheetTemplate: undefined, statSheetTemplateImage: '', statSheet: undefined })}
+            onTemplateChange={(template) => set({ statSheetTemplate: template })}
+          />
           {form.status === 'finished' && (
             <div className="mt-4">
-              <h3 className="text-sm font-medium">球员数据</h3>
-              <p className="mt-1 text-xs text-slate-400">比赛结束后才会在前台显示。留空的球员不会写进数据表。</p>
-              <div className="mt-3 grid gap-4 lg:grid-cols-2">
+              <h3 className="text-sm font-medium">技术统计</h3>
+              <p className="mt-1 text-xs text-slate-400">留空的球员不会写入。OCR 只是录入草稿，请以纸质记录和记分台确认为准。</p>
+              <StatSheetScanner
+                matchId={form.id}
+                template={form.statSheetTemplateImage ? undefined : form.statSheetTemplate}
+                statSheet={form.statSheet}
+                score={
+                  form.scoreHome !== '' && form.scoreAway !== ''
+                    ? { home: Number(form.scoreHome), away: Number(form.scoreAway) }
+                    : undefined
+                }
+                hasExistingStats={Object.values(form.lines).some((line) => Object.values(line).some((value) => value?.trim()))}
+                onResult={applyRecognition}
+              />
+              <div className={`mt-3 grid gap-4 ${matchFields.length > 3 ? '' : 'lg:grid-cols-2'}`}>
                 {[form.home, form.away].map((teamId, index) => {
                   const team = detail.teams.find((item) => item.id === teamId);
                   return (
@@ -983,7 +1062,7 @@ function LeagueAdminBody() {
                       key={`${teamId || 'empty'}-${index}`}
                       teamName={team?.short ?? '待定'}
                       players={team?.players ?? []}
-                      fields={STAT_FIELDS[league.sport]}
+                      fields={matchFields}
                       lines={form.lines}
                       onChange={setLine}
                     />
@@ -1155,36 +1234,51 @@ function LineEditor({
 }: {
   teamName: string;
   players: Player[];
-  fields: { key: 'points' | 'rebounds' | 'assists'; label: string }[];
+  fields: { key: PlayerStatKey; label: string }[];
   lines: MatchForm['lines'];
-  onChange: (playerId: string, key: 'points' | 'rebounds' | 'assists', value: string) => void;
+  onChange: (playerId: string, key: PlayerStatKey, value: string) => void;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
-      <p className="mb-2 text-sm font-semibold text-navy-950">{teamName}</p>
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50/50">
+      <p className="px-3 pt-3 pb-2 text-sm font-semibold text-navy-950">{teamName}</p>
       {players.length === 0 ? (
-        <p className="text-xs text-slate-400">还没有队员。先到上面的报名里加上。</p>
+        <p className="px-3 pb-3 text-xs text-slate-400">还没有队员。先到上面的报名里加上。</p>
       ) : (
-        <div className="space-y-2">
-          {players.map((player) => (
-            <div key={player.id} className="flex flex-wrap items-end gap-2">
-              <span className="w-24 shrink-0 truncate pb-1 text-sm">
-                <span className="mr-1 text-slate-400">#{player.number || '—'}</span>
-                {player.name}
-              </span>
-              {fields.map((field) => (
-                <label key={field.key} className="text-xs text-slate-500">
-                  {field.label}
-                  <input
-                    value={lines[player.id]?.[field.key] ?? ''}
-                    onChange={(event) => onChange(player.id, field.key, event.target.value)}
-                    inputMode="numeric"
-                    className="mt-0.5 block w-16 rounded border border-slate-200 px-2 py-1 text-sm"
-                  />
-                </label>
+        <div className="overflow-x-auto">
+          <table className="min-w-max border-separate border-spacing-0 text-xs">
+            <thead>
+              <tr className="text-slate-500">
+                <th className="sticky left-0 z-10 border-y border-slate-200 bg-slate-100 px-3 py-2 text-left font-medium">球员</th>
+                {fields.map((field) => (
+                  <th key={field.key} className="border-y border-l border-slate-200 bg-slate-100 px-2 py-2 text-center font-medium">
+                    {field.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {players.map((player) => (
+                <tr key={player.id}>
+                  <th className="sticky left-0 z-10 whitespace-nowrap border-b border-slate-200 bg-white px-3 py-2 text-left text-sm font-medium text-navy-950">
+                    <span className="mr-1 text-slate-400">#{player.number || '—'}</span>
+                    {player.name}
+                  </th>
+                  {fields.map((field) => (
+                    <td key={field.key} className="border-b border-l border-slate-200 bg-white p-1">
+                      <input
+                        aria-label={`${player.name}${field.label}`}
+                        value={lines[player.id]?.[field.key] ?? ''}
+                        onChange={(event) => onChange(player.id, field.key, event.target.value)}
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        className="block w-14 rounded border border-slate-200 px-1.5 py-1 text-right text-sm tabular-nums"
+                      />
+                    </td>
+                  ))}
+                </tr>
               ))}
-            </div>
-          ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

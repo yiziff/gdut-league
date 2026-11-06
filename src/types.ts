@@ -25,12 +25,61 @@ export interface Player {
   weight: string;
 }
 
-/** 一场比赛里某名球员的数据。篮球用得分、篮板、助攻；其他项目只用其中对应的项。 */
+/** 一场比赛里某名球员的数据；项目只使用模板中实际存在的字段。 */
 export interface PlayerLine {
   playerId: string;
   points: number;
   rebounds: number;
   assists: number;
+  twoPointsMade?: number;
+  twoPointsAttempted?: number;
+  threePointsMade?: number;
+  threePointsAttempted?: number;
+  freeThrowsMade?: number;
+  freeThrowsAttempted?: number;
+  offensiveRebounds?: number;
+  defensiveRebounds?: number;
+  steals?: number;
+  turnovers?: number;
+  blocks?: number;
+  fouls?: number;
+}
+
+export type PlayerStatKey = Exclude<keyof PlayerLine, 'playerId'>;
+
+export type StatSheetTemplateFieldKey =
+  | PlayerStatKey
+  | 'teamName'
+  | 'playerNumber'
+  | 'playerName'
+  | 'runningScore'
+  | 'finalScore'
+  | 'periodScore'
+  | 'teamFouls';
+
+export interface StatSheetTemplateField {
+  key: StatSheetTemplateFieldKey;
+  label: string;
+  sourceLabel?: string;
+}
+
+/** 管理员上传的空白表格，以及后台从中识别出的字段语义。 */
+export interface MatchStatSheetTemplate {
+  imageUrl: string;
+  uploadedAt: string;
+  analyzedAt?: string;
+  ocrEngine?: string;
+  kind: 'box-score' | 'fiba-scoresheet' | 'generic';
+  fields: StatSheetTemplateField[];
+  warnings: string[];
+}
+
+/** 纸质技术统计表的留档信息；OCR 结果仍需管理员确认后才写入 lines。 */
+export interface MatchStatSheet {
+  imageUrl: string;
+  uploadedAt: string;
+  recognizedAt?: string;
+  ocrEngine?: string;
 }
 
 export interface Team {
@@ -73,6 +122,10 @@ export interface Match {
   forfeit?: Side;
   /** 比赛结束后的球员数据 */
   lines?: PlayerLine[];
+  /** 创建比赛时上传并分析的空白技术统计表模板 */
+  statSheetTemplate?: MatchStatSheetTemplate;
+  /** 比赛结束后拍摄并留档的原始技术统计表 */
+  statSheet?: MatchStatSheet;
   nextMatchId?: string;
   nextSlot?: Side;
   loserNextMatchId?: string;

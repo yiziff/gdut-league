@@ -2,10 +2,27 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import express, { type NextFunction, type Request, type Response } from 'express';
-import type { Division, League, Match, MatchStatus, Player, PlayerLine, Score, Side, Sport, Stage, Team } from '../src/types.ts';
+import type {
+  Division,
+  League,
+  Match,
+  MatchStatSheet,
+  MatchStatSheetTemplate,
+  MatchStatus,
+  Player,
+  PlayerLine,
+  PlayerStatKey,
+  Score,
+  Side,
+  Sport,
+  Stage,
+  Team,
+} from '../src/types.ts';
 import { summarizeCareer } from '../src/lib/career.ts';
 import { docxToText } from '../src/lib/docxRoster.ts';
 import { planFormat, type FormatPreset } from '../src/lib/formats.ts';
+import { PLAYER_STAT_KEYS } from '../src/lib/playerStats.ts';
+import { STAT_SHEET_TEMPLATE_FIELD_KEYS } from '../src/lib/statSheetTemplate.ts';
 import { parseRoster } from '../src/lib/rosterImport.ts';
 import { addDays, roundRobinPairings } from '../src/lib/roundRobin.ts';
 import {
@@ -53,6 +70,12 @@ import {
 } from './db.ts';
 import { clearLeagueLogo, saveLeagueLogo } from './logo.ts';
 import { seedIfEmpty } from './seed.ts';
+import {
+  analyzeStatSheetTemplateImage,
+  recognizeFilledStatSheet,
+  saveStatSheetImage,
+  saveStatSheetTemplateImage,
+} from './statSheet.ts';
 
 function loadEnv(): void {
   const file = resolve('.env');
@@ -145,13 +168,112 @@ function linesOf(value: unknown, home: string | null, away: string | null): Play
     if (!playerId || !allowed.has(playerId)) throw new ApiError(400, '球员不属于这场比赛的队伍');
     if (seen.has(playerId)) throw new ApiError(400, '球员数据重复了');
     seen.add(playerId);
-    return {
+    const line: PlayerLine = {
       playerId,
       points: statNum(raw.points, '得分'),
       rebounds: statNum(raw.rebounds, '篮板'),
       assists: statNum(raw.assists, '助攻'),
     };
+    const labels: Record<PlayerStatKey, string> = {
+      points: '得分',
+      rebounds: '篮板',
+      assists: '助攻',
+      twoPointsMade: '2 分命中',
+      twoPointsAttempted: '2 分出手',
+      threePointsMade: '3 分命中',
+      threePointsAttempted: '3 分出手',
+      freeThrowsMade: '罚球命中',
+      freeThrowsAttempted: '罚球出手',
+      offensiveRebounds: '前场篮板',
+      defensiveRebounds: '后场篮板',
+      steals: '抢断',
+      turnovers: '失误',
+      blocks: '盖帽',
+      fouls: '犯规',
+    };
+    for (const key of PLAYER_STAT_KEYS) {
+      if (key === 'points' || key === 'rebounds' || key === 'assists') continue;
+      if (raw[key] === '' || raw[key] == null) continue;
+      line[key] = statNum(raw[key], labels[key]);
+    }
+    const attempts: Array<[PlayerStatKey, PlayerStatKey, string]> = [
+      ['twoPointsMade', 'twoPointsAttempted', '2 分球'],
+      ['threePointsMade', 'threePointsAttempted', '3 分球'],
+      ['freeThrowsMade', 'freeThrowsAttempted', '罚球'],
+    ];
+    for (const [made, attempted, label] of attempts) {
+      if (line[made] !== undefined && line[attempted] !== undefined && line[made]! > line[attempted]!) {
+        throw new ApiError(400, `${label}命中数不能大于出手数`);
+      }
+    }
+    return line;
   });
+}
+
+function statSheetOf(value: unknown, matchId: string): MatchStatSheet | undefined {
+  if (value == null) return undefined;
+  if (!value || typeof value !== 'object') throw new ApiError(400, '技术统计表信息格式不对');
+  const raw = value as Record<string, unknown>;
+  const imageUrl = typeof raw.imageUrl === 'string' ? raw.imageUrl.trim() : '';
+  const uploadedAt = typeof raw.uploadedAt === 'string' ? raw.uploadedAt.trim() : '';
+  const expected = `/uploads/matches/${matchId}-stats.jpg`;
+  if (!imageUrl.startsWith(expected)) throw new ApiError(400, '技术统计表图片地址不正确');
+  if (!uploadedAt || Number.isNaN(Date.parse(uploadedAt))) throw new ApiError(400, '技术统计表上传时间不正确');
+  const recognizedAt =
+    typeof raw.recognizedAt === 'string' && !Number.isNaN(Date.parse(raw.recognizedAt))
+      ? raw.recognizedAt
+      : undefined;
+  const ocrEngine = optionalText(raw.ocrEngine)?.slice(0, 80);
+  return { imageUrl, uploadedAt, recognizedAt, ocrEngine };
+}
+
+function statSheetTemplateOf(value: unknown, matchId: string): MatchStatSheetTemplate | undefined {
+  if (value == null) return undefined;
+  if (!value || typeof value !== 'object') throw new ApiError(400, '技术统计表模板格式不对');
+  const raw = value as Record<string, unknown>;
+  const imageUrl = typeof raw.imageUrl === 'string' ? raw.imageUrl.trim() : '';
+  const uploadedAt = typeof raw.uploadedAt === 'string' ? raw.uploadedAt.trim() : '';
+  const expected = `/uploads/matches/${matchId}-template.jpg`;
+  if (!imageUrl.startsWith(expected)) throw new ApiError(400, '技术统计表模板图片地址不正确');
+  if (!uploadedAt || Number.isNaN(Date.parse(uploadedAt))) throw new ApiError(400, '技术统计表模板上传时间不正确');
+  const analyzedAt =
+    typeof raw.analyzedAt === 'string' && !Number.isNaN(Date.parse(raw.analyzedAt))
+      ? raw.analyzedAt
+      : undefined;
+  const kind =
+    raw.kind === 'box-score' || raw.kind === 'fiba-scoresheet' || raw.kind === 'generic'
+      ? raw.kind
+      : 'generic';
+  const allowed = new Set<string>(STAT_SHEET_TEMPLATE_FIELD_KEYS);
+  const seen = new Set<string>();
+  const fields = Array.isArray(raw.fields)
+    ? raw.fields.flatMap((item) => {
+        if (!item || typeof item !== 'object') return [];
+        const field = item as Record<string, unknown>;
+        const key = typeof field.key === 'string' && allowed.has(field.key) ? field.key : '';
+        if (!key || seen.has(key)) return [];
+        seen.add(key);
+        return [
+          {
+            key: key as MatchStatSheetTemplate['fields'][number]['key'],
+            label: optionalText(field.label)?.slice(0, 40) ?? key,
+            sourceLabel: optionalText(field.sourceLabel)?.slice(0, 80),
+          },
+        ];
+      })
+    : [];
+  const warnings = Array.isArray(raw.warnings)
+    ? raw.warnings.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())).map((item) => item.trim().slice(0, 200)).slice(0, 20)
+    : [];
+  return {
+    imageUrl,
+    uploadedAt,
+    analyzedAt,
+    ocrEngine: optionalText(raw.ocrEngine)?.slice(0, 80),
+    kind,
+    fields,
+    warnings,
+  };
 }
 
 function sideOf(value: unknown, label: string): Side | undefined {
@@ -205,6 +327,8 @@ function parseMatch(body: unknown, league: League, id: string): Match {
     loserNextMatchId,
     loserNextSlot: sideOf(raw.loserNextSlot, '负者落位'),
     lines: status === 'finished' ? linesOf(raw.lines, home, away) : undefined,
+    statSheet: statSheetOf(raw.statSheet, id),
+    statSheetTemplate: statSheetTemplateOf(raw.statSheetTemplate, id),
   };
 }
 
@@ -525,20 +649,99 @@ app.delete('/api/admin/teams/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/admin/leagues/:id/matches', (req, res) => {
-  const league = requireLeague(req.params.id);
-  const match = parseMatch(req.body, league, randomUUID());
-  insertMatch(match);
-  res.status(201).json(match);
+async function applyStatSheetTemplateImage(match: Match, value: unknown): Promise<void> {
+  if (value == null || value === '') return;
+  if (typeof value !== 'string') throw new ApiError(400, '技术统计表模板图片格式不对');
+  let saved: MatchStatSheetTemplate;
+  try {
+    saved = saveStatSheetTemplateImage(match.id, value);
+  } catch (error) {
+    throw new ApiError(400, error instanceof Error ? error.message : '技术统计表模板无法保存');
+  }
+  const analysis = await analyzeStatSheetTemplateImage(value, match.sport);
+  match.statSheetTemplate = {
+    ...saved,
+    kind: analysis.kind,
+    fields: analysis.fields,
+    warnings: analysis.warnings,
+    analyzedAt: analysis.engine ? new Date().toISOString() : undefined,
+    ocrEngine: analysis.engine,
+  };
+}
+
+app.post('/api/admin/leagues/:id/matches', (req, res, next) => {
+  void (async () => {
+    const league = requireLeague(req.params.id);
+    const match = parseMatch(req.body, league, randomUUID());
+    await applyStatSheetTemplateImage(match, req.body?.statSheetTemplateImage);
+    insertMatch(match);
+    res.status(201).json(match);
+  })().catch(next);
 });
 
-app.patch('/api/admin/matches/:id', (req, res) => {
-  const existing = getMatch(req.params.id);
-  if (!existing?.leagueId) throw new ApiError(404, '比赛不存在');
-  const league = requireLeague(existing.leagueId);
-  const match = parseMatch({ ...existing, ...req.body }, league, existing.id);
-  updateMatch(match);
-  res.json(match);
+app.patch('/api/admin/matches/:id', (req, res, next) => {
+  void (async () => {
+    const existing = getMatch(req.params.id);
+    if (!existing?.leagueId) throw new ApiError(404, '比赛不存在');
+    const league = requireLeague(existing.leagueId);
+    const match = parseMatch({ ...existing, ...req.body }, league, existing.id);
+    await applyStatSheetTemplateImage(match, req.body?.statSheetTemplateImage);
+    updateMatch(match);
+    res.json(match);
+  })().catch(next);
+});
+
+app.post('/api/admin/matches/:id/stat-sheet/recognize', (req, res, next) => {
+  void (async () => {
+    const match = getMatch(req.params.id);
+    if (!match?.leagueId) throw new ApiError(404, '比赛不存在');
+    if (!match.statSheetTemplate) throw new ApiError(400, '请先上传并保存本场比赛的空白技术统计表模板');
+    if (!match.home || !match.away) throw new ApiError(400, '请先确定本场主队和客队');
+    const image = typeof req.body?.image === 'string' ? req.body.image : '';
+    if (!image) throw new ApiError(400, '请选择技术统计表照片');
+    const comparisonScore = scoreOf(req.body?.score, '比分') ?? match.score;
+
+    let statSheet: MatchStatSheet;
+    try {
+      statSheet = saveStatSheetImage(match.id, image);
+    } catch (error) {
+      throw new ApiError(400, error instanceof Error ? error.message : '技术统计表无法保存');
+    }
+
+    try {
+      const all = teamsOf(match.leagueId);
+      const teams = [all.find((team) => team.id === match.home), all.find((team) => team.id === match.away)].filter(
+        (team): team is Team => Boolean(team),
+      );
+      if (teams.length !== 2) throw new Error('本场球队或名单不存在');
+      const parsed = await recognizeFilledStatSheet(
+        match.id,
+        image,
+        match.statSheetTemplate,
+        match.sport,
+        teams,
+        comparisonScore,
+      );
+      statSheet = {
+        ...statSheet,
+        recognizedAt: parsed.engine ? new Date().toISOString() : undefined,
+        ocrEngine: parsed.engine,
+      };
+      res.json({
+        recognized: parsed.rows.length > 0,
+        statSheet,
+        ...parsed,
+      });
+    } catch (error) {
+      res.json({
+        recognized: false,
+        statSheet,
+        rows: [],
+        unmatchedRows: [],
+        warnings: [`照片已留档，但 OCR 识别失败：${error instanceof Error ? error.message : '未知错误'}`],
+      });
+    }
+  })().catch(next);
 });
 
 app.delete('/api/admin/matches/:id', (req, res) => {

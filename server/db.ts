@@ -1,7 +1,18 @@
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import type { League, Match, Player, PlayerLine, Score, Side, Sport, Team } from '../src/types.ts';
+import type {
+  League,
+  Match,
+  MatchStatSheet,
+  MatchStatSheetTemplate,
+  Player,
+  PlayerLine,
+  Score,
+  Side,
+  Sport,
+  Team,
+} from '../src/types.ts';
 
 const file = resolve('data/league.db');
 mkdirSync(dirname(file), { recursive: true });
@@ -75,6 +86,12 @@ db.exec(`
 const matchColumns = db.prepare('PRAGMA table_info(matches)').all() as { name: string }[];
 if (!matchColumns.some((column) => column.name === 'lines')) {
   db.exec('ALTER TABLE matches ADD COLUMN lines TEXT');
+}
+if (!matchColumns.some((column) => column.name === 'stat_sheet')) {
+  db.exec('ALTER TABLE matches ADD COLUMN stat_sheet TEXT');
+}
+if (!matchColumns.some((column) => column.name === 'stat_sheet_template')) {
+  db.exec('ALTER TABLE matches ADD COLUMN stat_sheet_template TEXT');
 }
 
 const playerColumns = db.prepare('PRAGMA table_info(players)').all() as { name: string }[];
@@ -167,6 +184,8 @@ interface MatchRow {
   loser_next_match_id: string | null;
   loser_next_slot: string | null;
   lines: string | null;
+  stat_sheet: string | null;
+  stat_sheet_template: string | null;
 }
 
 const json = (value: unknown) => (value == null ? null : JSON.stringify(value));
@@ -204,6 +223,8 @@ function toMatch(row: MatchRow): Match {
     loserNextMatchId: row.loser_next_match_id ?? undefined,
     loserNextSlot: (row.loser_next_slot as Side | null) ?? undefined,
     lines: parse<PlayerLine[]>(row.lines),
+    statSheet: parse<MatchStatSheet>(row.stat_sheet),
+    statSheetTemplate: parse<MatchStatSheetTemplate>(row.stat_sheet_template),
   };
 }
 
@@ -443,6 +464,8 @@ function writeMatch(match: Match, mode: 'insert' | 'update'): void {
     match.loserNextMatchId ?? null,
     match.loserNextSlot ?? null,
     json(match.lines),
+    json(match.statSheet),
+    json(match.statSheetTemplate),
     match.id,
   ];
   if (mode === 'insert') {
@@ -450,8 +473,9 @@ function writeMatch(match: Match, mode: 'insert' | 'update'): void {
       `INSERT INTO matches (
         league_id, sport, division, stage, group_name, home, away, home_seed, away_seed,
         time, venue, status, score, sets, penalties, forfeit,
-        next_match_id, next_slot, loser_next_match_id, loser_next_slot, lines, id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        next_match_id, next_slot, loser_next_match_id, loser_next_slot, lines, stat_sheet,
+        stat_sheet_template, id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(...params);
     return;
   }
@@ -461,7 +485,7 @@ function writeMatch(match: Match, mode: 'insert' | 'update'): void {
       league_id = ?, sport = ?, division = ?, stage = ?, group_name = ?, home = ?, away = ?,
       home_seed = ?, away_seed = ?, time = ?, venue = ?, status = ?, score = ?, sets = ?,
       penalties = ?, forfeit = ?, next_match_id = ?, next_slot = ?, loser_next_match_id = ?,
-      loser_next_slot = ?, lines = ? WHERE id = ?`,
+      loser_next_slot = ?, lines = ?, stat_sheet = ?, stat_sheet_template = ? WHERE id = ?`,
   ).run(...updateParams);
 }
 
