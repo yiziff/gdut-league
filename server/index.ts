@@ -21,7 +21,15 @@ import type {
 } from '../src/types.ts';
 import { LEAGUE_LEVELS } from '../src/types.ts';
 import { summarizeCareer } from '../src/lib/career.ts';
-import { pointsKey, tallyMarks, type ScoreMark, type SheetSide } from '../src/lib/fibaScore.ts';
+import {
+  autoReadJerseys,
+  pointsKey,
+  tallyMarks,
+  UNREAD_JERSEY,
+  type FibaTally,
+  type ScoreMark,
+  type SheetSide,
+} from '../src/lib/fibaScore.ts';
 import { docxToText } from '../src/lib/docxRoster.ts';
 import { planFormat, type FormatPreset } from '../src/lib/formats.ts';
 import { PLAYER_STAT_KEYS } from '../src/lib/playerStats.ts';
@@ -106,7 +114,7 @@ class ApiError extends Error {
 const SPORTS: Sport[] = ['basketball', 'football', 'badminton', 'volleyball', 'tabletennis'];
 const LEVELS: LeagueLevel[] = LEAGUE_LEVELS.map((item) => item.id);
 const DIVISIONS: Division[] = ['men', 'women', 'mixed'];
-const STAGES: Stage[] = ['group', 'R16', 'QF', 'SF', 'F', '3rd'];
+const STAGES: Stage[] = ['group', 'R16', 'QF', 'SF', 'F', '3rd', 'single'];
 const STATUSES: MatchStatus[] = ['scheduled', 'live', 'finished'];
 const SIDES: Side[] = ['home', 'away'];
 
@@ -340,6 +348,12 @@ function requireLeague(id: string): League {
   return league;
 }
 
+function requireMultiMatchLeague(id: string): League {
+  const league = requireLeague(id);
+  if (league.kind === 'single') throw new ApiError(400, '单场比赛只有一场，不能生成对阵');
+  return league;
+}
+
 const app = express();
 app.use('/api', (_req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -565,12 +579,62 @@ app.post('/api/admin/leagues', (req, res) => {
     name: text(req.body?.name, '联赛名称'),
     season: optionalText(req.body?.season) ?? '',
     level: oneOf(req.body?.level, LEVELS, '级别'),
+    kind: 'league',
     logo: '',
     createdBy: actor,
     published: false,
   };
   league.logo = logoFromBody(league.id, req.body?.logo, '');
   insertLeague(league);
+  res.status(201).json(league);
+});
+
+app.post('/api/admin/singles', (req, res) => {
+  const actor = sessionName(req);
+  if (!actor) throw new ApiError(400, '请先填写你的名字');
+  const sport = oneOf(req.body?.sport, SPORTS, '项目');
+  const homeName = text(req.body?.home, '主队名称');
+  const awayName = text(req.body?.away, '客队名称');
+  if (homeName === awayName) throw new ApiError(400, '主队和客队不能同名');
+  const time = text(req.body?.time, '比赛时间');
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(time)) throw new ApiError(400, '比赛时间格式应为 2026-11-03T14:00');
+  const league: League = {
+    id: randomUUID(),
+    sport,
+    name: optionalText(req.body?.name) ?? `${homeName}对${awayName}`,
+    season: optionalText(req.body?.season) ?? '',
+    level: oneOf(req.body?.level ?? 'friendly', LEVELS, '级别'),
+    kind: 'single',
+    logo: '',
+    createdBy: actor,
+    published: false,
+  };
+  const teams: Team[] = [homeName, awayName].map((name, index) => ({
+    id: randomUUID(),
+    leagueId: league.id,
+    name,
+    short: name.slice(0, 4),
+    color: TEAM_COLORS[index],
+  }));
+  const match: Match = {
+    id: randomUUID(),
+    leagueId: league.id,
+    sport,
+    division: oneOf(req.body?.division ?? 'men', DIVISIONS, '组别'),
+    stage: 'single',
+    home: teams[0].id,
+    away: teams[1].id,
+    time,
+    venue: optionalText(req.body?.venue) ?? '待定',
+    status: 'scheduled',
+  };
+  transaction(() => {
+    insertLeague(league);
+    teams.forEach(insertTeam);
+    insertMatch(match);
+  });
+  league.logo = logoFromBody(league.id, req.body?.logo, '');
+  if (league.logo) updateLeague(league.id, league.name, league.season, league.level, league.logo, league.createdBy, league.published);
   res.status(201).json(league);
 });
 
@@ -739,6 +803,7 @@ async function applyStatSheetTemplateImage(match: Match, value: unknown): Promis
 app.post('/api/admin/leagues/:id/matches', (req, res, next) => {
   void (async () => {
     const league = requireLeague(req.params.id);
+    if (league.kind === 'single' && matchesOf(league.id).length > 0) throw new ApiError(400, '单场比赛只有一场，不能再添加');
     const match = parseMatch(req.body, league, randomUUID());
     await applyStatSheetTemplateImage(match, req.body?.statSheetTemplateImage);
     insertMatch(match);
@@ -802,8 +867,18 @@ app.post('/api/admin/matches/:id/stat-sheet/recognize', (req, res, next) => {
     if (match.sport === 'basketball') {
       try {
         statSheet.scoresheet = await extractFibaSheet(match.id, statSheetPath(match.id));
-        finishMatchWithSheet(match, statSheet);
-        res.json({ recognized: false, statSheet, rows: [], unmatchedRows: [], warnings: [] });
+        match.statSheet = statSheet;
+        const warnings = autoApplyScoresheet(match);
+        finishMatchWithSheet(match, match.statSheet);
+        const recognized = Boolean(match.statSheet.scoresheet?.autoReadAt);
+        res.json({
+          recognized,
+          statSheet: match.statSheet,
+          score: recognized ? match.score : undefined,
+          rows: recognized ? linesAsRows(match) : [],
+          unmatchedRows: [],
+          warnings,
+        });
       } catch (error) {
         finishMatchWithSheet(match, statSheet);
         res.json({
@@ -861,6 +936,10 @@ app.post('/api/admin/matches/:id/stat-sheet/recognize', (req, res, next) => {
   })().catch(next);
 });
 
+function linesAsRows(match: Match) {
+  return (match.lines ?? []).map((line) => ({ playerId: line.playerId, teamId: '', number: '', name: '', stats: { points: line.points } }));
+}
+
 function statSheetPath(matchId: string): string {
   return resolve('data/uploads/matches', `${matchId}-stats.jpg`);
 }
@@ -883,7 +962,7 @@ app.post('/api/admin/matches/:id/stat-sheet/align', (req, res, next) => {
     let corners: number[] | undefined;
     if (req.body?.corners != null) {
       corners = Array.isArray(req.body.corners) ? req.body.corners.map(Number) : [];
-      if (corners!.length !== 8 || corners!.some((value) => !Number.isFinite(value) || value < 0)) {
+      if (corners!.length !== 8 || corners!.some((value) => !Number.isFinite(value) || Math.abs(value) > 100000)) {
         throw new ApiError(400, '请在照片上点四个角');
       }
     }
@@ -893,12 +972,64 @@ app.post('/api/admin/matches/:id/stat-sheet/align', (req, res, next) => {
       if (error instanceof FibaSheetError) throw new ApiError(400, error.message);
       throw error;
     }
+    const warnings = autoApplyScoresheet(match);
     updateMatch(match);
-    res.json({ statSheet: match.statSheet });
+    res.json({ statSheet: match.statSheet, match, warnings });
   })().catch(next);
 });
 
-/** 保存逐格确认的球衣号，按累积分重算个人得分并写入比赛。 */
+function matchTeams(match: Match): { home?: Team; away?: Team } {
+  const all = match.leagueId ? teamsOf(match.leagueId) : [];
+  return { home: all.find((team) => team.id === match.home), away: all.find((team) => team.id === match.away) };
+}
+
+/** 按每格球衣号重算个人得分和比分，写进比赛（不落库）。auto 表示号码是机器认的。 */
+function applyJerseys(match: Match, homeSide: SheetSide, jerseys: Record<string, string>, auto: boolean): FibaTally {
+  const sheet = match.statSheet?.scoresheet;
+  if (!match.statSheet || !sheet) throw new ApiError(400, '这场比赛还没有切好格的记录表');
+  const { home, away } = matchTeams(match);
+  if (!home || !away) throw new ApiError(400, '本场球队不存在');
+  const sides = homeSide === 'A' ? { A: home, B: away } : { A: away, B: home };
+  const marks: ScoreMark[] = Object.entries(jerseys).map(([key, jersey]) => {
+    const [side, total] = key.split(':');
+    return { side: side as SheetSide, total: Number(total), jersey };
+  });
+  const rosterOf = (side: SheetSide) => (sides[side].players ?? []).map((player) => player.number);
+  const tally = tallyMarks(marks, { A: rosterOf('A'), B: rosterOf('B') });
+
+  const previous = new Map((match.lines ?? []).map((line) => [line.playerId, line]));
+  const lines = new Map(previous);
+  for (const side of ['A', 'B'] as const) {
+    for (const player of sides[side].players ?? []) {
+      const points = tally.points[pointsKey(side, player.number)];
+      const line = previous.get(player.id);
+      if (points === undefined && !line) continue;
+      lines.set(player.id, { ...(line ?? { playerId: player.id }), points: points ?? 0 });
+    }
+  }
+  match.lines = [...lines.values()];
+  match.score = homeSide === 'A' ? { home: tally.totals.A, away: tally.totals.B } : { home: tally.totals.B, away: tally.totals.A };
+  match.status = 'finished';
+  const now = new Date().toISOString();
+  match.statSheet = {
+    ...match.statSheet,
+    scoresheet: { ...sheet, homeSide, jerseys, autoReadAt: auto ? now : undefined, reviewedAt: auto ? undefined : now },
+  };
+  return tally;
+}
+
+/** 切格时已经认了号码，就直接对着名单写入得分。主客队没定或名单为空时只留切图。 */
+function autoApplyScoresheet(match: Match): string[] {
+  const sheet = match.statSheet?.scoresheet;
+  if (!sheet || !sheet.cells.some((cell) => cell.reads)) return [];
+  const { home, away } = matchTeams(match);
+  if (!home?.players?.length || !away?.players?.length) return ['两队名单还没导入，号码没法自动对上名单。'];
+  const numbers = (team: Team) => (team.players ?? []).map((player) => player.number);
+  const { homeSide, jerseys } = autoReadJerseys(sheet.cells, numbers(home), numbers(away));
+  return applyJerseys(match, homeSide, jerseys, true).warnings;
+}
+
+/** 保存手动改过的球衣号，按累积分重算个人得分并写入比赛。 */
 app.put('/api/admin/matches/:id/stat-sheet/review', (req, res) => {
   const match = editableMatch(req);
   const sheet = match.statSheet?.scoresheet;
@@ -915,40 +1046,15 @@ app.put('/api/admin/matches/:id/stat-sheet/review', (req, res) => {
   for (const [key, value] of Object.entries(rawJerseys as Record<string, unknown>)) {
     if (!validKeys.has(key)) continue;
     const text = typeof value === 'string' ? value.trim() : '';
-    if (text && !/^\d{1,3}$/.test(text)) throw new ApiError(400, `累计分 ${key.split(':')[1]} 的号码只能是数字`);
+    if (text && text !== UNREAD_JERSEY && !/^\d{1,3}$/.test(text)) {
+      throw new ApiError(400, `累计分 ${key.split(':')[1]} 的号码只能是数字`);
+    }
     jerseys[key] = text;
   }
 
-  const all = teamsOf(match.leagueId!);
-  const teamOf = (side: SheetSide) => all.find((team) => team.id === (side === homeSide ? match.home : match.away));
-  const sides = { A: teamOf('A'), B: teamOf('B') };
-  if (!sides.A || !sides.B) throw new ApiError(400, '本场球队不存在');
-  const marks: ScoreMark[] = Object.entries(jerseys).map(([key, jersey]) => {
-    const [side, total] = key.split(':');
-    return { side: side as SheetSide, total: Number(total), jersey };
-  });
-  const rosterOf = (side: SheetSide) => (sides[side]!.players ?? []).map((player) => player.number);
-  const tally = tallyMarks(marks, { A: rosterOf('A'), B: rosterOf('B') });
-
-  const previous = new Map((match.lines ?? []).map((line) => [line.playerId, line]));
-  const lines = new Map(previous);
-  for (const side of ['A', 'B'] as const) {
-    for (const player of sides[side]!.players ?? []) {
-      const points = tally.points[pointsKey(side, player.number)];
-      const line = previous.get(player.id);
-      if (points === undefined && !line) continue;
-      lines.set(player.id, { ...(line ?? { playerId: player.id }), points: points ?? 0 });
-    }
-  }
-  match.lines = [...lines.values()];
-  match.score = homeSide === 'A' ? { home: tally.totals.A, away: tally.totals.B } : { home: tally.totals.B, away: tally.totals.A };
-  match.status = 'finished';
-  match.statSheet = {
-    ...match.statSheet,
-    scoresheet: { ...sheet, homeSide, jerseys, reviewedAt: new Date().toISOString() },
-  };
+  const tally = applyJerseys(match, homeSide, jerseys, false);
   updateMatch(match);
-  const samples = saveDigitSamples(match.id, match.statSheet.scoresheet!);
+  const samples = saveDigitSamples(match.id, match.statSheet!.scoresheet!);
   res.json({ match, warnings: tally.warnings, samples });
 });
 
@@ -1019,7 +1125,7 @@ app.post('/api/admin/leagues/:id/matches/bulk-delete', (req, res) => {
 });
 
 app.post('/api/admin/leagues/:id/format', (req, res) => {
-  const league = requireLeague(req.params.id);
+  const league = requireMultiMatchLeague(req.params.id);
   const teamIds = Array.isArray(req.body?.teamIds) ? req.body.teamIds.filter((id: unknown): id is string => typeof id === 'string') : [];
   if (new Set(teamIds).size !== teamIds.length) throw new ApiError(400, '队伍重复了');
   for (const id of teamIds) {
@@ -1062,7 +1168,7 @@ app.post('/api/admin/leagues/:id/format', (req, res) => {
 });
 
 app.post('/api/admin/leagues/:id/round-robin', (req, res) => {
-  const league = requireLeague(req.params.id);
+  const league = requireMultiMatchLeague(req.params.id);
   const teamIds = Array.isArray(req.body?.teamIds) ? req.body.teamIds.filter((id: unknown) => typeof id === 'string') : [];
   if (teamIds.length < 2) throw new ApiError(400, '至少选择两支队伍');
   if (new Set(teamIds).size !== teamIds.length) throw new ApiError(400, '队伍重复了');

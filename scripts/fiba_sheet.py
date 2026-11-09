@@ -1,9 +1,9 @@
 """FIBA 记录表切格工具。
 
-calibrate <空白表> <layout.json> [blank.jpg]
-    从空白标准表标定累积分区格线和最后比分区，写入 layout.json
-extract <照片> <输出目录> [--corners x1,y1,x2,y2,x3,y3,x4,y4] [--layout layout.json]
-    拉正照片、切出写了字的累积分号码格，结果 JSON 输出到 stdout
+extract <照片> <输出目录> [--corners x1,y1,x2,y2,x3,y3,x4,y4] [--read]
+    拉正照片，直接在照片上找累积分区格线，切出写了字的号码格，结果 JSON 输出到 stdout。
+    加 --read 时用 PaddleOCR 认每格的手写号码，每格给出几种裁法的识别文字和置信度。
+    设置 FIBA_DEBUG=1 时把每格笔迹量打到 stderr，并在输出目录画 grid.jpg。
 """
 
 import json
@@ -15,11 +15,11 @@ import numpy as np
 
 CANVAS_W = 2000
 CANVAS_H = 2830
+MARGIN = 0.03
 ROWS = 40
 BLOCKS = 4
 SCORE_COLUMNS = BLOCKS * 4
-INK_THRESHOLD = 0.04
-DEFAULT_LAYOUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "server", "fiba", "layout.json")
+INK_THRESHOLD = 0.02
 
 
 class SheetError(Exception):
@@ -95,7 +95,12 @@ def find_form_corners(image):
 
 
 def warp(image, corners):
-    target = np.array([[0, 0], [CANVAS_W - 1, 0], [CANVAS_W - 1, CANVAS_H - 1], [0, CANVAS_H - 1]], dtype=np.float32)
+    """四个角映射到画布内缩一圈的位置，角点稍微点偏了，框外的格线也还留在画布里。"""
+    mx, my = CANVAS_W * MARGIN, CANVAS_H * MARGIN
+    target = np.array(
+        [[mx, my], [CANVAS_W - 1 - mx, my], [CANVAS_W - 1 - mx, CANVAS_H - 1 - my], [mx, CANVAS_H - 1 - my]],
+        dtype=np.float32,
+    )
     matrix = cv2.getPerspectiveTransform(order_corners(corners), target)
     return cv2.warpPerspective(
         image, matrix, (CANVAS_W, CANVAS_H), flags=cv2.INTER_CUBIC, borderValue=(255, 255, 255)
@@ -123,29 +128,39 @@ def peaks(profile, threshold, min_gap):
     return merged
 
 
-def locate_columns(vertical, reference):
-    found = [CANVAS_W // 2 + value for value in peaks(vertical[:, CANVAS_W // 2 :].sum(axis=0) / 255, CANVAS_H * 0.25, 12)]
-    if reference is None:
-        if len(found) < SCORE_COLUMNS + 1:
-            raise SheetError("calibrate", f"累积分区竖线只找到 {len(found)} 条")
-        columns = found[-(SCORE_COLUMNS + 1) :]
-        gaps = np.diff(columns)
-        if gaps.std() / gaps.mean() > 0.25:
-            raise SheetError("calibrate", "累积分区竖线间距不均匀")
-        return columns, SCORE_COLUMNS + 1
-    step = (reference[-1] - reference[0]) / SCORE_COLUMNS
+def snap_columns(found, left, right):
+    step = (right - left) / SCORE_COLUMNS
     snapped = []
-    hits = 0
-    for expected in reference:
-        near = [value for value in found if abs(value - expected) <= step * 0.4]
-        if near:
-            snapped.append(min(near, key=lambda value: abs(value - expected)))
-            hits += 1
-        else:
-            snapped.append(None)
-    offsets = [value - reference[index] for index, value in enumerate(snapped) if value is not None]
-    shift = float(np.median(offsets)) if offsets else 0.0
-    return [value if value is not None else reference[index] + shift for index, value in enumerate(snapped)], hits
+    for index in range(SCORE_COLUMNS + 1):
+        expected = left + step * index
+        near = [line for line in found if abs(line[0] - expected) <= step * 0.2]
+        snapped.append(min(near, key=lambda line: abs(line[0] - expected)) if near else None)
+    return snapped
+
+
+def locate_columns(vertical):
+    """累积分区是 16 列近似等宽的格子：在表格右侧找竖线，挑出对上的竖线总长最长的等距 17 条。"""
+    start = int(CANVAS_W * 0.4)
+    profile = vertical[:, start:].sum(axis=0) / 255
+    found = [(start + x, float(profile[max(0, int(x) - 3) : int(x) + 4].max())) for x in peaks(profile, CANVAS_H * 0.06, 12)]
+    candidates = [x for x, _ in found] + [CANVAS_W - 1.0]
+    best = None
+    for index, left in enumerate(candidates):
+        for right in candidates[index + 1 :]:
+            step = (right - left) / SCORE_COLUMNS
+            if not CANVAS_W * 0.02 <= step <= CANVAS_W * 0.045:
+                continue
+            snapped = snap_columns(found, left, right)
+            strength = sum(line[1] for line in snapped if line is not None)
+            if best is None or strength > best[0]:
+                best = (strength, snapped)
+    snapped = [line[0] if line is not None else None for line in best[1]] if best else []
+    if sum(value is not None for value in snapped) < SCORE_COLUMNS // 2:
+        raise SheetError("align", "找不到累积分区的竖线")
+    known = [(i, value) for i, value in enumerate(snapped) if value is not None]
+    slope, intercept = np.polyfit([i for i, _ in known], [value for _, value in known], 1)
+    columns = [value if value is not None else float(intercept + slope * i) for i, value in enumerate(snapped)]
+    return columns, len(known)
 
 
 def locate_rows(horizontal, columns, reference_pitch):
@@ -180,31 +195,56 @@ def locate_rows(horizontal, columns, reference_pitch):
         raise SheetError("align", "找不到累积分区底线")
 
     rows = [bottom]
-    hits = 1
+    hits = [True]
     local = pitch
-    for _ in range(ROWS):
+    for _ in range(ROWS + 4):
         expected = rows[-1] - local
+        if expected < 0:
+            break
         snapped = near(expected, local * 0.3)
         if snapped is not None:
             gap = rows[-1] - snapped
             if pitch * 0.8 < gap < pitch * 1.2:
                 local = local * 0.7 + gap * 0.3
             rows.append(snapped)
-            hits += 1
         else:
             rows.append(expected)
+        hits.append(snapped is not None)
     rows.reverse()
+    hits.reverse()
+    for _ in range(2):
+        expected = rows[-1] + pitch
+        if expected - pitch * 0.5 >= CANVAS_H:
+            break
+        snapped = near(expected, pitch * 0.3)
+        rows.append(snapped if snapped is not None else expected)
+        hits.append(snapped is not None)
+    if len(rows) < ROWS + 1:
+        raise SheetError("align", "累积分区的行数不够，表格可能没拍全")
     return rows, hits
 
 
-def locate_grid(warped, layout):
+def printed_rows(ink, rows, columns):
+    """每行 8 个累计分格里有几个有字。累计分格都印着数字，表头那行只有 A/B 字母。"""
+    counts = []
+    for top, bottom in zip(rows, rows[1:]):
+        filled = 0
+        for block in range(BLOCKS):
+            for column in (block * 4 + 1, block * 4 + 2):
+                filled += ink_score(ink, top, bottom, columns[column], columns[column + 1]) >= INK_THRESHOLD
+        counts.append(filled)
+    return counts
+
+
+def locate_grid(warped, ink):
     gray = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
     horizontal, vertical = line_masks(binary_ink(gray), 40)
-    columns, column_hits = locate_columns(vertical, layout["scoreColumns"] if layout else None)
-    reference_pitch = (
-        (layout["scoreRows"][-1] - layout["scoreRows"][0]) / ROWS if layout else (columns[-1] - columns[0]) / SCORE_COLUMNS * 0.85
-    )
-    rows, row_hits = locate_rows(horizontal, columns, reference_pitch)
+    columns, column_hits = locate_columns(vertical)
+    lines, hits = locate_rows(horizontal, columns, (columns[-1] - columns[0]) / SCORE_COLUMNS * 0.85)
+    counts = printed_rows(ink, lines, columns)
+    start = max(range(len(lines) - ROWS), key=lambda index: (sum(counts[index : index + ROWS]), index))
+    rows = lines[start : start + ROWS + 1]
+    row_hits = sum(hits[start : start + ROWS + 1])
     quality = (row_hits / (ROWS + 1) + column_hits / (SCORE_COLUMNS + 1)) / 2
     return rows, columns, quality
 
@@ -222,27 +262,13 @@ def aligned_sheet(image, corners_arg):
     return warp(image, corners)
 
 
-def calibrate(source, output, blank_output=None):
-    warped = aligned_sheet(read_image(source), None)
-    rows, columns, quality = locate_grid(warped, None)
-    pitch = (rows[-1] - rows[0]) / ROWS
-    layout = {
-        "canvas": [CANVAS_W, CANVAS_H],
-        "scoreColumns": [round(value, 1) for value in columns],
-        "scoreRows": [round(value, 1) for value in rows],
-        "final": [
-            round(columns[0], 1),
-            round(rows[-1] + pitch * 0.2, 1),
-            round(columns[-1], 1),
-            round(min(CANVAS_H, rows[-1] + pitch * 11), 1),
-        ],
-    }
-    os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
-    with open(output, "w", encoding="utf-8") as file:
-        json.dump(layout, file, ensure_ascii=False, indent=2)
-    if blank_output:
-        cv2.imwrite(blank_output, warped, [cv2.IMWRITE_JPEG_QUALITY, 85])
-    emit({"ok": True, "quality": round(quality, 2), "layout": layout})
+def draw_grid(warped, rows, columns, path):
+    overlay = warped.copy()
+    for x in columns:
+        cv2.line(overlay, (int(x), int(rows[0])), (int(x), int(rows[-1])), (255, 120, 0), 3)
+    for y in rows:
+        cv2.line(overlay, (int(columns[0]), int(y)), (int(columns[-1]), int(y)), (0, 160, 255), 2)
+    cv2.imwrite(path, overlay, [cv2.IMWRITE_JPEG_QUALITY, 80])
 
 
 def ink_map(warped):
@@ -262,19 +288,47 @@ def ink_score(ink, top, bottom, left, right):
     return float(inner.mean() / 255) if inner.size else 0.0
 
 
-def extract(source, output_dir, corners_arg=None, layout_path=None):
-    with open(layout_path or DEFAULT_LAYOUT, encoding="utf-8") as file:
-        layout = json.load(file)
+def jersey_crops(warped, ink, top, bottom, left, right):
+    """号码常写出格，除了格内原图，再给一张放宽、去掉格线的笔迹图。"""
+    height, width = bottom - top, right - left
+    tight = warped[int(top + height * 0.1) : int(bottom - height * 0.1), int(left + 4) : int(right - 4)]
+    t, b = int(max(0, top - height * 0.3)), int(min(CANVAS_H, bottom + height * 0.1))
+    l, r = int(max(0, left - width * 0.3)), int(min(CANVAS_W, right + width * 0.3))
+    wide = cv2.cvtColor(255 - ink[t:b, l:r], cv2.COLOR_GRAY2BGR)
+    pad = lambda image: cv2.copyMakeBorder(image, 12, 12, 24, 24, cv2.BORDER_CONSTANT, value=(255, 255, 255))
+    return [pad(tight), pad(wide)]
+
+
+def read_jerseys(crops):
+    os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
+    try:
+        from paddleocr import TextRecognition
+    except ImportError as error:
+        raise SheetError("read", f"没装 PaddleOCR，认不了号码：{error}")
+    model = TextRecognition(model_name=os.environ.get("FIBA_OCR_MODEL", "PP-OCRv5_server_rec"))
+    images = [image for pair in crops for image in pair]
+    results = list(model.predict(images, batch_size=32)) if images else []
+    reads = []
+    for index in range(len(crops)):
+        pair = results[index * 2 : index * 2 + 2]
+        reads.append([[str(item["rec_text"]), round(float(item["rec_score"]), 3)] for item in pair])
+    return reads
+
+
+def extract(source, output_dir, corners_arg=None, read=False):
     warped = aligned_sheet(read_image(source), corners_arg)
-    rows, columns, quality = locate_grid(warped, layout)
+    ink = ink_map(warped)
+    rows, columns, quality = locate_grid(warped, ink)
     if quality < 0.6 and not corners_arg:
         raise SheetError("align", "表格没对齐，请正对表格、四个角拍全后重拍，或手动点四个角")
 
     os.makedirs(output_dir, exist_ok=True)
     cv2.imwrite(os.path.join(output_dir, "aligned.jpg"), warped, [cv2.IMWRITE_JPEG_QUALITY, 85])
+    if os.environ.get("FIBA_DEBUG"):
+        draw_grid(warped, rows, columns, os.path.join(output_dir, "grid.jpg"))
 
-    ink = ink_map(warped)
     cells = []
+    crops = []
     for block in range(BLOCKS):
         for side, jersey_column in (("A", block * 4), ("B", block * 4 + 3)):
             left, right = columns[jersey_column], columns[jersey_column + 1]
@@ -296,6 +350,16 @@ def extract(source, output_dir, corners_arg=None, layout_path=None):
                 name = f"score-{side}-{total:03d}.jpg"
                 cv2.imwrite(os.path.join(output_dir, name), view, [cv2.IMWRITE_JPEG_QUALITY, 90])
                 cells.append({"side": side, "total": total, "image": name, "ink": round(score, 3)})
+                if read:
+                    crops.append(jersey_crops(warped, ink, top, bottom, left, right))
+
+    read_error = None
+    if read:
+        try:
+            for cell, reads in zip(cells, read_jerseys(crops)):
+                cell["reads"] = reads
+        except SheetError as error:
+            read_error = error.message
 
     pitch = (rows[-1] - rows[0]) / ROWS
     final = warped[
@@ -305,7 +369,10 @@ def extract(source, output_dir, corners_arg=None, layout_path=None):
     cv2.imwrite(os.path.join(output_dir, "final.jpg"), final, [cv2.IMWRITE_JPEG_QUALITY, 85])
 
     cells.sort(key=lambda cell: (cell["side"], cell["total"]))
-    emit({"ok": True, "quality": round(quality, 2), "aligned": "aligned.jpg", "final": "final.jpg", "score": cells})
+    payload = {"ok": True, "quality": round(quality, 2), "aligned": "aligned.jpg", "final": "final.jpg", "score": cells}
+    if read_error:
+        payload["readError"] = read_error
+    emit(payload)
 
 
 def option(rest, name):
@@ -317,10 +384,8 @@ def option(rest, name):
 
 def main(argv):
     try:
-        if len(argv) >= 4 and argv[1] == "calibrate":
-            calibrate(argv[2], argv[3], argv[4] if len(argv) > 4 else None)
-        elif len(argv) >= 4 and argv[1] == "extract":
-            extract(argv[2], argv[3], option(argv[4:], "--corners"), option(argv[4:], "--layout"))
+        if len(argv) >= 4 and argv[1] == "extract":
+            extract(argv[2], argv[3], option(argv[4:], "--corners"), "--read" in argv[4:])
         else:
             raise SheetError("usage", __doc__.strip())
     except SheetError as error:

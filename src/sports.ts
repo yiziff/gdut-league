@@ -89,6 +89,7 @@ export const STAGE_LABEL: Record<Stage, string> = {
   SF: '半决赛',
   F: '决赛',
   '3rd': '三四名决赛',
+  single: '单场',
 };
 
 export const KNOCKOUT_ORDER: Stage[] = ['R16', 'QF', 'SF', 'F'];

@@ -27,7 +27,8 @@ interface ExtractOutput {
   message?: string;
   aligned?: string;
   final?: string;
-  score?: { side: 'A' | 'B'; total: number; image: string }[];
+  readError?: string;
+  score?: { side: 'A' | 'B'; total: number; image: string; reads?: [string, number][] }[];
 }
 
 function safeId(id: string): string {
@@ -39,18 +40,19 @@ function pythonPath(): string {
   return process.env.FIBA_PYTHON?.trim() || resolve('.venv-ocr/bin/python');
 }
 
-/** 拉正一张 FIBA 记录表照片并切出写了字的累积分号码格。 */
+/** 拉正一张 FIBA 记录表照片，切出写了字的累积分号码格，并用 OCR 认每格的号码。 */
 export async function extractFibaSheet(matchId: string, imagePath: string, corners?: number[]): Promise<FibaScoresheet> {
   const id = safeId(matchId);
   const output = resolve(sheetRoot, id);
   rmSync(output, { recursive: true, force: true });
   mkdirSync(output, { recursive: true });
-  const args = [script, 'extract', imagePath, output];
+  const args = [script, 'extract', imagePath, output, '--read'];
   if (corners) args.push('--corners', corners.map((value) => value.toFixed(1)).join(','));
 
   let stdout: string;
   try {
-    ({ stdout } = await run(pythonPath(), args, { timeout: 30_000, maxBuffer: 4 * 1024 * 1024 }));
+    // 首次加载 OCR 模型加上逐格识别，一张表要一到两分钟
+    ({ stdout } = await run(pythonPath(), args, { timeout: 300_000, maxBuffer: 16 * 1024 * 1024 }));
   } catch (error) {
     const detail = error instanceof Error ? error.message.split('\n')[0] : '';
     throw new FibaSheetError('runtime', `切格程序没能运行，请检查 FIBA_PYTHON 和 OpenCV。${detail}`);
@@ -62,13 +64,19 @@ export async function extractFibaSheet(matchId: string, imagePath: string, corne
     throw new FibaSheetError('runtime', '切格程序返回的结果无法解析');
   }
   if (!parsed.ok) throw new FibaSheetError(parsed.reason ?? 'align', parsed.message ?? '表格没对齐');
+  if (parsed.readError) console.warn(`FIBA 号码识别失败：${parsed.readError}`);
 
   const version = Date.now();
   const url = (name: string) => `/uploads/stat-sheets/${id}/${name}?v=${version}`;
   return {
     alignedUrl: url(parsed.aligned ?? 'aligned.jpg'),
     finalUrl: url(parsed.final ?? 'final.jpg'),
-    cells: (parsed.score ?? []).map((cell) => ({ side: cell.side, total: cell.total, imageUrl: url(cell.image) })),
+    cells: (parsed.score ?? []).map((cell) => ({
+      side: cell.side,
+      total: cell.total,
+      imageUrl: url(cell.image),
+      ...(cell.reads ? { reads: cell.reads } : {}),
+    })),
   };
 }
 

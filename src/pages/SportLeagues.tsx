@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router';
 import { SPORT_MAP, isSport } from '../sports';
 import { LEAGUE_LEVELS, type LeagueLevel } from '../types';
 import { useData } from '../data/store';
+import { clockOf, dateOf, formatDate } from '../lib/format';
 import NotFound from './NotFound';
 
 function levelLabel(level: LeagueLevel) {
@@ -76,8 +77,23 @@ export default function SportLeagues() {
                 <h2 className={`sport-league-name min-w-0 truncate league-level-${item.league.level}`}>{item.league.name}</h2>
               </div>
               <div className="mt-7 flex items-center justify-between border-t border-neutral-200 pt-4 text-sm">
-                <span className="sport-card-meta">{item.teams.length} 支队伍</span>
-                <span className="font-semibold tabular-nums text-neutral-950">已赛 {done}/{item.matches.length}</span>
+                {item.league.kind === 'single' ? (
+                  <>
+                    <span className="sport-card-meta">单场比赛</span>
+                    <span className="font-semibold tabular-nums text-neutral-950">
+                      {item.matches[0]?.score && item.matches[0].status !== 'scheduled'
+                        ? `${item.matches[0].score.home} : ${item.matches[0].score.away}`
+                        : item.matches[0]
+                          ? `${formatDate(dateOf(item.matches[0].time))} ${clockOf(item.matches[0].time)}`
+                          : ''}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="sport-card-meta">{item.teams.length} 支队伍</span>
+                    <span className="font-semibold tabular-nums text-neutral-950">已赛 {done}/{item.matches.length}</span>
+                  </>
+                )}
               </div>
             </Link>
           );

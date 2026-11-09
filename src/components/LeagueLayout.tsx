@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useParams } from 'react-router';
+import { Navigate, NavLink, Outlet, useLocation, useParams } from 'react-router';
 import { SPORT_MAP, isSport } from '../sports';
 import { useData } from '../data/store';
 import type { LeagueData } from '../data/prepare';
@@ -19,6 +19,7 @@ const tabClass = ({ isActive }: { isActive: boolean }) =>
 
 export default function LeagueLayout() {
   const { sport, leagueId } = useParams();
+  const { pathname } = useLocation();
   const { leagues } = useData();
   if (!isSport(sport)) return <NotFound />;
   const meta = SPORT_MAP[sport];
@@ -26,6 +27,9 @@ export default function LeagueLayout() {
   if (!found) return <NotFound />;
   const base = `/${sport}/${found.league.id}`;
   const finished = found.matches.filter((match) => match.status === 'finished').length;
+  const single = found.league.kind === 'single';
+  const only = single ? found.matches[0] : undefined;
+  if (only && !pathname.startsWith(`${base}/matches/`)) return <Navigate to={`${base}/matches/${only.id}`} replace />;
 
   return (
     <div>
@@ -45,6 +49,7 @@ export default function LeagueLayout() {
             <h1 className={`page-title league-level-${found.league.level}`}>{found.league.name}</h1>
             {found.league.season && <p className="masthead-copy mt-3 text-sm">{found.league.season}</p>}
           </div>
+          {!single && (
           <dl className="flex divide-x divide-white/15 text-sm">
             <div className="pr-6">
               <dt className="text-[10px] font-bold tracking-[0.14em] text-slate-400 uppercase">队伍</dt>
@@ -59,8 +64,12 @@ export default function LeagueLayout() {
               <dd className="mt-1 text-xl font-bold tabular-nums text-white">{finished}</dd>
             </div>
           </dl>
+          )}
         </div>
       </div>
+      {single ? (
+        <div className="mb-8" />
+      ) : (
       <div className="subnav-panel mb-8">
         <div className="flex min-w-max gap-8">
           <NavLink to={`${base}/schedule`} className={tabClass}>
@@ -74,6 +83,7 @@ export default function LeagueLayout() {
           </NavLink>
         </div>
       </div>
+      )}
       <Outlet />
     </div>
   );

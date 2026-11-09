@@ -59,25 +59,25 @@ npm run dev
 篮球比赛统一使用 FIBA 标准记录表，不调用收费服务：
 
 1. 在比赛编辑页的「技术统计」上传填好的记录表照片，比赛自动记为已结束；
-2. `scripts/fiba_sheet.py` 找到表格外框并拉正，按 `server/fiba/layout.json` 定位累积分区格线，只切出写了字的号码格；
-3. 核对页先选表上 A 队是哪一队，再逐格填球衣号（点名单号码，或输入号码回车，没写号码点「空」）；
-4. 每次得分 = 这格累计分减去本队上一个写了号码的格子，按号码加总得到个人得分，并和表底最后比分对账；
-5. 点「确认写入得分」，个人得分和比分写入比赛，确认过的格子存为样本（`data/digit-samples/<号码>/`，`digit_samples` 表），留给以后训练本机手写数字识别。
+2. `scripts/fiba_sheet.py` 找到表格外框并拉正，直接在照片上找累积分区的 17 条等距竖线和逐行横线（不依赖空白模板，不同印刷版本都能用），用「每行累计分格都印着数字、表头没有」定出第 1 到第 40 行，只切出写了字的号码格；
+3. 每格用本地 PaddleOCR（`PP-OCRv5_server_rec`，可用 `FIBA_OCR_MODEL` 换）按格内原图和放宽的笔迹图各认一次，服务端对着两队名单挑最像的号码，并按吻合度判断表上 A 队是主队还是客队；
+4. 每次得分 = 这格累计分减去本队上一个写了号码的格子，按号码加总得到个人得分和比分，直接写入比赛；认出数字但对不上名单的格子记为「?」，这几分只算进全队总分；
+5. 号码认错时点「号码认错了？逐格修改」，改完点「确认写入得分」。手动改过的格子存为样本（`data/digit-samples/<号码>/`，`digit_samples` 表），留给以后训练本机手写数字识别。
 
-拍照要求：表格外框四个角都要拍进去，尽量正对、光线均匀。自动切格失败时，可以在原图上手点外框四个角重试。
+一张表识别要一到三分钟。识别准确率受照片清晰度影响很大，截图或压缩过的图片经常认错。
+
+拍照要求：表格外框四个角都要拍进去，尽量正对、纸压平、光线均匀，用手机原图，不要用压缩过的截图。自动切格失败或格子没对上时，可以在原图上手点外框四个角重试；角在照片外时点在照片外的估计位置。
 
 依赖：
 
 ```bash
 python3 -m venv .venv-ocr
-.venv-ocr/bin/pip install opencv-python-headless numpy
+.venv-ocr/bin/pip install opencv-python-headless numpy paddleocr paddlepaddle
 ```
 
-换了记录表版式时，用空白表重新标定：
+没装 PaddleOCR 时仍会切格，但不自动认号码，需要逐格手填。
 
-```bash
-.venv-ocr/bin/python scripts/fiba_sheet.py calibrate 空白表.jpg server/fiba/layout.json server/fiba/blank.jpg
-```
+排查切格问题：`FIBA_DEBUG=1 .venv-ocr/bin/python scripts/fiba_sheet.py extract 照片.jpg 输出目录` 会把每格笔迹量打到 stderr，并在输出目录画出 `grid.jpg`。
 
 ## 动态技术统计表识别（其他项目）
 

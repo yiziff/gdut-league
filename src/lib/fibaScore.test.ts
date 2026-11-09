@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { tallyMarks, type ScoreMark } from './fibaScore';
+import { autoReadJerseys, guessJersey, tallyMarks, UNREAD_JERSEY, type ScoreMark } from './fibaScore';
 
 /** 沙步社区（A 队）54 : 41 中央公园（B 队）那张记录表，按原图逐格整理。 */
 const sampleA: [number, string][] = [
@@ -79,5 +79,46 @@ describe('tallyMarks', () => {
       'A 队 2 到 7 之间跨了 5 分，可能漏记',
       'B 队 0 到 7 之间跨了 7 分，可能漏记',
     ]);
+  });
+});
+
+describe('autoReadJerseys', () => {
+  const home = ['24', '7', '11', '23', '13', '5'];
+  const away = ['3', '35', '23', '93', '2', '1'];
+
+  it('maps OCR text onto roster numbers, including lookalike letters and digits spilling over', () => {
+    expect(guessJersey([['7', 0.99], ['7.', 0.7]], home).jersey).toBe('7');
+    expect(guessJersey([['N', 0.13], ['S', 0.6]], home).jersey).toBe('5');
+    expect(guessJersey([['193', 0.6], ['93', 0.5]], away).jersey).toBe('93');
+    expect(guessJersey([['Z', 0.3], ['2', 0.43]], away).jersey).toBe('2');
+  });
+
+  it('treats cells without digits as empty and unmatched digits as unread', () => {
+    expect(guessJersey([['■', 0.8], ['', 0]], home).jersey).toBe('');
+    expect(guessJersey([['48', 0.9]], away).jersey).toBe(UNREAD_JERSEY);
+  });
+
+  it('picks the sheet side whose roster fits the reads better', () => {
+    const cells = [
+      { side: 'A' as const, total: 2, reads: [['93', 0.9]] as [string, number][] },
+      { side: 'A' as const, total: 4, reads: [['35', 0.9]] as [string, number][] },
+      { side: 'B' as const, total: 2, reads: [['24', 0.9]] as [string, number][] },
+    ];
+    const result = autoReadJerseys(cells, home, away);
+    expect(result.homeSide).toBe('B');
+    expect(result.jerseys).toEqual({ 'A:2': '93', 'A:4': '35', 'B:2': '24' });
+  });
+
+  it('keeps unread points out of player totals but in the team total', () => {
+    const tally = tallyMarks(
+      [
+        { side: 'A', total: 2, jersey: '7' },
+        { side: 'A', total: 4, jersey: UNREAD_JERSEY },
+      ],
+      { A: ['7'], B: [] },
+    );
+    expect(tally.points).toEqual({ 'A:7': 2 });
+    expect(tally.totals.A).toBe(4);
+    expect(tally.warnings).toEqual(['A 队有 2 分没认出号码，没有计入个人得分']);
   });
 });

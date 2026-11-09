@@ -7,7 +7,7 @@ import NotFound from './NotFound';
 import { DIVISION_LABEL, STAGE_LABEL } from '../sports';
 import { statFieldsForTemplate } from '../lib/statSheetTemplate';
 import { clockOf, dateOf, formatDate, slotLabel } from '../lib/format';
-import type { Match, Player, PlayerLine, PlayerStatKey, Side, Team } from '../types';
+import { LEAGUE_LEVELS, type Match, type Player, type PlayerLine, type PlayerStatKey, type Side, type Team } from '../types';
 import { api, ApiError } from './admin/api';
 import StatSheetScanner from './admin/StatSheetScanner';
 
@@ -22,7 +22,12 @@ export default function MatchDetail() {
   if (!match) return <NotFound />;
 
   const fields = statFieldsForTemplate(match.sport, match.statSheetTemplate);
-  const stage = match.stage === 'group' ? `${match.group ?? ''}组` : STAGE_LABEL[match.stage];
+  const stage =
+    match.stage === 'group'
+      ? `${match.group ?? ''}组`
+      : match.stage === 'single'
+        ? (LEAGUE_LEVELS.find((item) => item.id === league.level)?.label ?? STAGE_LABEL.single)
+        : STAGE_LABEL[match.stage];
   const started = match.status !== 'scheduled' && match.score;
   const lines = new Map((match.lines ?? []).map((line) => [line.playerId, line]));
 
@@ -37,8 +42,11 @@ export default function MatchDetail() {
 
   return (
     <div>
-      <Link to={`/${league.sport}/${league.id}/schedule`} className="text-xs font-medium text-slate-500 hover:text-gdut-700">
-        赛程 / 返回列表
+      <Link
+        to={league.kind === 'single' ? `/${league.sport}` : `/${league.sport}/${league.id}/schedule`}
+        className="text-xs font-medium text-slate-500 hover:text-gdut-700"
+      >
+        {league.kind === 'single' ? '赛事 / 返回列表' : '赛程 / 返回列表'}
       </Link>
       <div className="mt-4 mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>

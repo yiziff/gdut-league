@@ -1,9 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { readLogoFile } from '../../lib/logoFile';
-import { SPORTS } from '../../sports';
+import { DIVISION_LABEL, DIVISION_ORDER, SPORTS } from '../../sports';
 import { useDataState } from '../../data/store';
-import { LEAGUE_LEVELS, type League, type LeagueLevel, type Sport } from '../../types';
+import { LEAGUE_LEVELS, type Division, type League, type LeagueKind, type LeagueLevel, type Sport } from '../../types';
 import AdminGate, { useAdminActor } from './AdminGate';
 import { api, ApiError } from './api';
 
@@ -20,6 +20,12 @@ function AdminHomeBody() {
   const [level, setLevel] = useState<LeagueLevel>('school');
   const [logo, setLogo] = useState('');
   const [error, setError] = useState('');
+  const [kind, setKind] = useState<LeagueKind>('league');
+  const [home, setHome] = useState('');
+  const [away, setAway] = useState('');
+  const [time, setTime] = useState(() => `${new Date().toISOString().slice(0, 10)}T14:00`);
+  const [venue, setVenue] = useState('');
+  const [division, setDivision] = useState<Division>('men');
 
   async function loadCatalog() {
     setCatalog(await api<LeagueCard[]>('/api/admin/leagues'));
@@ -33,10 +39,16 @@ function AdminHomeBody() {
     event.preventDefault();
     setError('');
     try {
-      const created = await api<League>('/api/admin/leagues', {
-        method: 'POST',
-        body: JSON.stringify({ sport, name, season, level, logo }),
-      });
+      const created =
+        kind === 'single'
+          ? await api<League>('/api/admin/singles', {
+              method: 'POST',
+              body: JSON.stringify({ sport, home, away, time, venue, division, level, season, logo }),
+            })
+          : await api<League>('/api/admin/leagues', {
+              method: 'POST',
+              body: JSON.stringify({ sport, name, season, level, logo }),
+            });
       await reload();
       await loadCatalog();
       navigate(`/admin/leagues/${created.id}`, { state: { createdBy: created.createdBy || name.trim() } });
@@ -72,9 +84,33 @@ function AdminHomeBody() {
       </div>
 
       <form onSubmit={(event) => void create(event)} className="surface mb-10 grid gap-4 p-5 sm:grid-cols-4">
-        <div className="sm:col-span-4">
-          <h2 className="section-title">创建联赛</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3 sm:col-span-4">
+          <h2 className="section-title">{kind === 'single' ? '创建单场比赛' : '创建联赛'}</h2>
+          <span className="flex rounded-full border border-slate-200 p-1 text-sm">
+            {(
+              [
+                ['league', '联赛'],
+                ['single', '单场比赛'],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  setKind(id);
+                  setLevel(id === 'single' ? 'friendly' : 'school');
+                  setError('');
+                }}
+                className={`rounded-full px-3 py-1 ${kind === id ? 'bg-gdut-600 font-semibold text-white' : 'text-slate-600'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </span>
         </div>
+        {kind === 'single' && (
+          <p className="-mt-2 text-xs text-slate-500 sm:col-span-4">一场定胜负，不排赛制、没有积分榜。创建后直接进入这场比赛，可以导入双方名单、上传技术统计。</p>
+        )}
         <label className="text-sm font-medium text-slate-700">
           项目
           <select value={sport} onChange={(event) => setSport(event.target.value as Sport)} className="field mt-1.5 w-full">
@@ -85,14 +121,47 @@ function AdminHomeBody() {
             ))}
           </select>
         </label>
-        <label className="text-sm font-medium text-slate-700 sm:col-span-2">
-          联赛名称
-          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="例如 计算机院内班BA" className="field mt-1.5 w-full" />
-        </label>
-        <label className="text-sm font-medium text-slate-700">
-          赛季
-          <input value={season} onChange={(event) => setSeason(event.target.value)} className="field mt-1.5 w-full" />
-        </label>
+        {kind === 'single' ? (
+          <>
+            <label className="text-sm font-medium text-slate-700">
+              主队
+              <input value={home} onChange={(event) => setHome(event.target.value)} placeholder="例如 德州十中" className="field mt-1.5 w-full" />
+            </label>
+            <label className="text-sm font-medium text-slate-700">
+              客队
+              <input value={away} onChange={(event) => setAway(event.target.value)} placeholder="例如 潍坊新华中学" className="field mt-1.5 w-full" />
+            </label>
+            <label className="text-sm font-medium text-slate-700">
+              组别
+              <select value={division} onChange={(event) => setDivision(event.target.value as Division)} className="field mt-1.5 w-full">
+                {DIVISION_ORDER.map((item) => (
+                  <option key={item} value={item}>
+                    {DIVISION_LABEL[item]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm font-medium text-slate-700 sm:col-span-2">
+              比赛时间
+              <input type="datetime-local" value={time} onChange={(event) => setTime(event.target.value)} className="field mt-1.5 w-full" />
+            </label>
+            <label className="text-sm font-medium text-slate-700 sm:col-span-2">
+              场地
+              <input value={venue} onChange={(event) => setVenue(event.target.value)} placeholder="可以先空着" className="field mt-1.5 w-full" />
+            </label>
+          </>
+        ) : (
+          <>
+            <label className="text-sm font-medium text-slate-700 sm:col-span-2">
+              联赛名称
+              <input value={name} onChange={(event) => setName(event.target.value)} placeholder="例如 计算机院内班BA" className="field mt-1.5 w-full" />
+            </label>
+            <label className="text-sm font-medium text-slate-700">
+              赛季
+              <input value={season} onChange={(event) => setSeason(event.target.value)} className="field mt-1.5 w-full" />
+            </label>
+          </>
+        )}
         <label className="text-sm font-medium text-slate-700 sm:col-span-4">
           级别
           <span className="mt-1.5 flex flex-wrap gap-2">
@@ -109,8 +178,8 @@ function AdminHomeBody() {
           </span>
         </label>
         <label className="text-sm font-medium text-slate-700 sm:col-span-4">
-          联赛图标
-          <span className="mt-1 block text-xs font-normal text-slate-400">创建时上传。前台会放在联赛名称左边；不上传就用图库里的球员头像。</span>
+          {kind === 'single' ? '比赛图标' : '联赛图标'}
+          <span className="mt-1 block text-xs font-normal text-slate-400">创建时上传。前台会放在名称左边；不上传就用图库里的球员头像。</span>
           <span className="mt-2 flex items-center gap-3">
             {logo ? <img src={logo} alt="" className="h-12 w-12 rounded-lg object-cover" /> : null}
             <input
@@ -129,15 +198,19 @@ function AdminHomeBody() {
             />
           </span>
           <span className={`mt-2 block text-xs ${logo ? 'text-amber-800' : 'text-slate-400'}`}>
-            {logo ? '图标已选好，还没上传。点下面的「创建联赛」才会保存。' : '可以不上传图标。'}
+            {logo ? `图标已选好，还没上传。点下面的「${kind === 'single' ? '创建比赛' : '创建联赛'}」才会保存。` : '可以不上传图标。'}
           </span>
         </label>
         {error && <p className="text-sm text-red-600 sm:col-span-4">{error}</p>}
         <div className="sm:col-span-4">
           <button type="submit" className="btn-primary">
-            创建联赛
+            {kind === 'single' ? '创建比赛' : '创建联赛'}
           </button>
-          <p className="mt-2 text-xs text-slate-500">填好名称后点这个按钮。创建成功会进入该联赛，并记在你的名字下。</p>
+          <p className="mt-2 text-xs text-slate-500">
+            {kind === 'single'
+              ? '填好两支队伍和时间后点这个按钮。名称默认是「主队对客队」，创建后可以改。'
+              : '填好名称后点这个按钮。创建成功会进入该联赛，并记在你的名字下。'}
+          </p>
         </div>
       </form>
 
@@ -188,7 +261,9 @@ function LeagueGroups({
                         {' · '}
                         {league.published ? '已上线' : '未上线'}
                         {' · '}
-                        {league.season} · {league.teamCount} 支队伍 · {league.matchCount} 场
+                        {league.kind === 'single'
+                          ? '单场比赛'
+                          : `${league.season} · ${league.teamCount} 支队伍 · ${league.matchCount} 场`}
                       </p>
                     </div>
                     <div className="flex gap-3 text-sm">

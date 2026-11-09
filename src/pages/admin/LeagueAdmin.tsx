@@ -213,7 +213,7 @@ function LeagueAdminBody() {
   const [playerDrafts, setPlayerDrafts] = useState<Record<string, PlayerDraft>>({});
   const [playerErrors, setPlayerErrors] = useState<Record<string, string>>({});
   const [savingPlayerFor, setSavingPlayerFor] = useState<string | null>(null);
-  const [notice, setNotice] = useState(createdByFlash ? `联赛已创建，创建者是 ${createdByFlash}。` : '');
+  const [notice, setNotice] = useState(createdByFlash ? `已创建，创建者是 ${createdByFlash}。` : '');
   const [savingMatch, setSavingMatch] = useState(false);
   const [logoDraft, setLogoDraft] = useState<string | null>(null);
   const [rosterText, setRosterText] = useState('');
@@ -231,6 +231,8 @@ function LeagueAdminBody() {
       const next = await api<Detail>(`/api/leagues/${leagueId}`);
       setDetail(next);
       setMissing(false);
+      const only = next.league.kind === 'single' ? next.matches[0] : undefined;
+      if (only) setForm((current) => (current.id ? current : toForm(only)));
       await reload();
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) setMissing(true);
@@ -258,6 +260,7 @@ function LeagueAdminBody() {
   const scoreName =
     league.sport === 'football' ? '进球' : league.sport === 'volleyball' ? '局数' : league.sport === 'basketball' ? '得分' : '胜场';
   const ownsLeague = !league.createdBy || league.createdBy === actor;
+  const single = league.kind === 'single';
 
   async function run(action: () => Promise<void>) {
     setError('');
@@ -942,6 +945,7 @@ function LeagueAdminBody() {
         </div>
       </section>
 
+      {!single && (
       <section className="mb-10">
         <p className="data-label mb-1">Competition format</p>
         <h2 className="section-title">赛制和对阵</h2>
@@ -1043,10 +1047,11 @@ function LeagueAdminBody() {
           <p className="mt-2 text-xs text-slate-400">同一轮的比赛从 14:00 起排，每轮间隔 7 天。勾选顺序会决定种子和分组。这个组别已经有比赛时，再生成会先清掉旧的，不会往后追加。</p>
         </form>
       </section>
+      )}
 
       <section>
         <p className="data-label mb-1">Match operations</p>
-        <h2 className="section-title mb-4">逐场调整</h2>
+        <h2 className="section-title mb-4">{single ? '比赛信息' : '逐场调整'}</h2>
         <form onSubmit={(event) => void saveMatch(event)} className="surface mb-4 p-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className="text-sm text-slate-600">
@@ -1059,20 +1064,26 @@ function LeagueAdminBody() {
                 ))}
               </select>
             </label>
-            <label className="text-sm text-slate-600">
-              阶段
-              <select value={form.stage} onChange={(event) => set({ stage: event.target.value as Stage })} className={inputClass}>
-                {(Object.keys(STAGE_LABEL) as Stage[]).map((item) => (
-                  <option key={item} value={item}>
-                    {STAGE_LABEL[item]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm text-slate-600">
-              小组
-              <input value={form.group} onChange={(event) => set({ group: event.target.value })} className={inputClass} placeholder="淘汰赛可留空" />
-            </label>
+            {!single && (
+              <>
+                <label className="text-sm text-slate-600">
+                  阶段
+                  <select value={form.stage} onChange={(event) => set({ stage: event.target.value as Stage })} className={inputClass}>
+                    {(Object.keys(STAGE_LABEL) as Stage[])
+                      .filter((item) => item !== 'single')
+                      .map((item) => (
+                        <option key={item} value={item}>
+                          {STAGE_LABEL[item]}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label className="text-sm text-slate-600">
+                  小组
+                  <input value={form.group} onChange={(event) => set({ group: event.target.value })} className={inputClass} placeholder="淘汰赛可留空" />
+                </label>
+              </>
+            )}
             <label className="text-sm text-slate-600">
               状态
               <select value={form.status} onChange={(event) => set({ status: event.target.value as MatchStatus })} className={inputClass}>
@@ -1196,16 +1207,22 @@ function LeagueAdminBody() {
             )}
           </div>
           <details className="mt-3">
-            <summary className="cursor-pointer text-sm text-slate-500">{league.sport === 'football' ? '晋级、点球、弃权' : '晋级、弃权'}</summary>
+            <summary className="cursor-pointer text-sm text-slate-500">
+              {[!single && '晋级', league.sport === 'football' && '点球', '弃权'].filter(Boolean).join('、')}
+            </summary>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <label className="text-sm text-slate-600">
-                主队种子
-                <input value={form.homeSeed} onChange={(event) => set({ homeSeed: event.target.value })} placeholder="A1" className={inputClass} />
-              </label>
-              <label className="text-sm text-slate-600">
-                客队种子
-                <input value={form.awaySeed} onChange={(event) => set({ awaySeed: event.target.value })} placeholder="B2" className={inputClass} />
-              </label>
+              {!single && (
+                <>
+                  <label className="text-sm text-slate-600">
+                    主队种子
+                    <input value={form.homeSeed} onChange={(event) => set({ homeSeed: event.target.value })} placeholder="A1" className={inputClass} />
+                  </label>
+                  <label className="text-sm text-slate-600">
+                    客队种子
+                    <input value={form.awaySeed} onChange={(event) => set({ awaySeed: event.target.value })} placeholder="B2" className={inputClass} />
+                  </label>
+                </>
+              )}
               <label className="text-sm text-slate-600">
                 弃权方
                 <select value={form.forfeit} onChange={(event) => set({ forfeit: event.target.value as MatchForm['forfeit'] })} className={inputClass}>
@@ -1223,6 +1240,8 @@ function LeagueAdminBody() {
                   </span>
                 </label>
               )}
+              {!single && (
+              <>
               <label className="text-sm text-slate-600">
                 胜者进入
                 <select value={form.nextMatchId} onChange={(event) => set({ nextMatchId: event.target.value })} className={inputClass}>
@@ -1265,13 +1284,15 @@ function LeagueAdminBody() {
                   <option value="away">客队</option>
                 </select>
               </label>
+              </>
+              )}
             </div>
           </details>
           <div className="mt-4 flex gap-3">
             <button className="btn-primary" disabled={savingMatch}>
               {savingMatch ? '正在保存…' : form.statSheetTemplateImage ? '上传模板并保存比赛' : form.id ? '保存修改' : '添加比赛'}
             </button>
-            {form.id && (
+            {form.id && !single && (
               <button type="button" className="text-sm text-slate-500" onClick={() => setForm(blankMatch())}>
                 取消编辑
               </button>
@@ -1279,7 +1300,7 @@ function LeagueAdminBody() {
           </div>
         </form>
 
-        {detail.matches.length > 0 && (
+        {!single && detail.matches.length > 0 && (
           <div className="mb-2 flex items-center gap-4 text-sm">
             <label className="flex items-center gap-2 text-slate-600">
               <input
@@ -1294,6 +1315,7 @@ function LeagueAdminBody() {
             </button>
           </div>
         )}
+        {!single && (
         <div className="surface overflow-x-auto">
           <table className="w-full text-sm">
             <tbody>
@@ -1346,6 +1368,7 @@ function LeagueAdminBody() {
             </tbody>
           </table>
         </div>
+        )}
       </section>
     </div>
   );

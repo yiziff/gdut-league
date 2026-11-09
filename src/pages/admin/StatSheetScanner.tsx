@@ -78,14 +78,19 @@ export default function StatSheetScanner({
         method: 'POST',
         body: JSON.stringify({ image: dataUrl, score }),
       });
-      setWarnings(result.alignError ? [...result.warnings, result.alignError] : result.warnings);
+      const autoRead = Boolean(result.statSheet.scoresheet?.autoReadAt);
+      // 自动认号的提醒在下面的识别结果里显示
+      const shown = autoRead ? [] : result.warnings;
+      setWarnings(result.alignError ? [...shown, result.alignError] : shown);
       setUnmatched(result.unmatchedRows);
       setNotice(
-        result.recognized
-          ? `已上传，比赛已记为结束，并匹配 ${result.rows.length} 名球员。`
-          : result.statSheet.scoresheet
-            ? `已上传，比赛已记为结束。切出 ${result.statSheet.scoresheet.cells.length} 个写了字的格子，请在下面确认号码。`
-            : '已上传，比赛已记为结束。',
+        autoRead
+          ? `已上传，比赛已记为结束。自动认出号码，写入了 ${result.rows.length} 名球员的得分和比分。`
+          : result.recognized
+            ? `已上传，比赛已记为结束，并匹配 ${result.rows.length} 名球员。`
+            : result.statSheet.scoresheet
+              ? `已上传，比赛已记为结束。切出 ${result.statSheet.scoresheet.cells.length} 个写了字的格子。`
+              : '已上传，比赛已记为结束。',
       );
       onResult({ statSheet: result.statSheet, rows: result.rows, score: result.score });
     } catch (error) {
@@ -137,7 +142,13 @@ export default function StatSheetScanner({
       ) : (
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <label className="btn-primary cursor-pointer">
-            {reading || recognizing ? '正在上传…' : image || statSheet?.imageUrl ? '重新上传技术统计' : '上传技术统计'}
+            {reading || recognizing
+              ? fiba
+                ? '正在切格、认号码…'
+                : '正在上传…'
+              : image || statSheet?.imageUrl
+                ? '重新上传技术统计'
+                : '上传技术统计'}
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp,image/*"
@@ -148,7 +159,11 @@ export default function StatSheetScanner({
             />
           </label>
           {!template && !fiba && <span className="text-xs text-slate-400">没有空白模板时只留档，不自动填表。</span>}
-          {fiba && <span className="text-xs text-slate-400">FIBA 标准记录表：上传后逐格确认号码，自动算个人得分。</span>}
+          {fiba && (
+            <span className="text-xs text-slate-400">
+              {recognizing ? '认号码要一到两分钟，请别关页面。' : 'FIBA 标准记录表：上传后自动认号码，按累积分算个人得分和比分。'}
+            </span>
+          )}
         </div>
       )}
 

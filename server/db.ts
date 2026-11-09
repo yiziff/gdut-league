@@ -153,6 +153,9 @@ if (!leagueColumns.some((column) => column.name === 'created_by')) {
 if (!leagueColumns.some((column) => column.name === 'published')) {
   db.exec('ALTER TABLE leagues ADD COLUMN published INTEGER NOT NULL DEFAULT 1');
 }
+if (!leagueColumns.some((column) => column.name === 'kind')) {
+  db.exec("ALTER TABLE leagues ADD COLUMN kind TEXT NOT NULL DEFAULT 'league'");
+}
 
 const sessionColumns = db.prepare('PRAGMA table_info(sessions)').all() as { name: string }[];
 if (!sessionColumns.some((column) => column.name === 'name')) {
@@ -178,6 +181,7 @@ interface LeagueRow {
   season: string;
   logo: string;
   level: string;
+  kind: string;
   created_by: string;
   published: number;
   created_at: string;
@@ -229,6 +233,7 @@ function toLeague(row: LeagueRow): League {
     name: row.name,
     season: row.season,
     level,
+    kind: row.kind === 'single' ? 'single' : 'league',
     logo: row.logo ?? '',
     createdBy: row.created_by ?? '',
     published: row.published !== 0,
@@ -399,6 +404,7 @@ interface AccountRow extends PlayerRow {
   league_sport: string;
   league_season: string;
   league_level: string;
+  league_kind: string;
 }
 
 function toAccount(row: AccountRow): PlayerAccount {
@@ -417,6 +423,7 @@ function toAccount(row: AccountRow): PlayerAccount {
       name: row.league_name,
       season: row.league_season,
       level: isLeagueLevel(row.league_level) ? row.league_level : 'friendly',
+      kind: row.league_kind === 'single' ? 'single' : 'league',
       createdBy: '',
       published: true,
     },
@@ -425,7 +432,8 @@ function toAccount(row: AccountRow): PlayerAccount {
 
 const accountSql = `
   SELECT players.*, teams.name AS team_name, teams.short AS team_short, teams.color AS team_color,
-         teams.league_id AS league_id, leagues.name AS league_name, leagues.sport AS league_sport, leagues.season AS league_season, leagues.level AS league_level
+         teams.league_id AS league_id, leagues.name AS league_name, leagues.sport AS league_sport, leagues.season AS league_season, leagues.level AS league_level,
+         leagues.kind AS league_kind
   FROM players
   JOIN teams ON teams.id = players.team_id
   JOIN leagues ON leagues.id = teams.league_id
@@ -464,13 +472,14 @@ export function leagueCount(): number {
 
 export function insertLeague(league: League): void {
   db.prepare(
-    'INSERT INTO leagues (id, sport, name, season, level, logo, created_by, published, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO leagues (id, sport, name, season, level, kind, logo, created_by, published, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
   ).run(
     league.id,
     league.sport,
     league.name,
     league.season,
     league.level,
+    league.kind,
     league.logo ?? '',
     league.createdBy,
     league.published ? 1 : 0,

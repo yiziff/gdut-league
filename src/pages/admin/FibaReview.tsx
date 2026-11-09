@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
-import { normalizeJersey, pointsKey, tallyMarks, type ScoreMark, type SheetSide } from '../../lib/fibaScore';
+import { normalizeJersey, pointsKey, tallyMarks, UNREAD_JERSEY, type ScoreMark, type SheetSide } from '../../lib/fibaScore';
 import type { FibaScoreCell, Match, MatchStatSheet, Team } from '../../types';
 import { api } from './api';
 
@@ -28,6 +28,8 @@ export default function FibaReview({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [recut, setRecut] = useState(false);
+  const [editing, setEditing] = useState(false);
   const inputs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
@@ -35,6 +37,8 @@ export default function FibaReview({
     setJerseys(sheet?.jerseys ?? {});
     setMessage('');
     setError('');
+    setRecut(false);
+    setEditing(false);
   }, [sheet]);
 
   const teams = useMemo<Record<SheetSide, Team | undefined>>(
@@ -61,7 +65,74 @@ export default function FibaReview({
   }, [marks, teams]);
   const reviewed = ordered.filter((cell) => cellKey(cell) in jerseys).length;
 
-  if (!sheet) return <CornerPicker matchId={matchId} statSheet={statSheet} onSheet={onSheet} />;
+  if (!sheet || recut) {
+    return (
+      <CornerPicker
+        matchId={matchId}
+        statSheet={statSheet}
+        onSheet={onSheet}
+        onSaved={onSaved}
+        onCancel={sheet ? () => setRecut(false) : undefined}
+      />
+    );
+  }
+
+  const links = (
+    <div className="flex items-center gap-3 text-xs">
+      <a href={sheet.alignedUrl} target="_blank" rel="noreferrer" className="font-medium text-gdut-700 hover:text-gdut-900">
+        拉正后的整表
+      </a>
+      <button type="button" onClick={() => setRecut(true)} className="font-medium text-gdut-700 hover:text-gdut-900">
+        格子没对上？重新切格
+      </button>
+    </div>
+  );
+
+  if (sheet.homeSide && sheet.jerseys && !editing) {
+    const unread = ordered.filter((cell) => jerseys[cellKey(cell)] === UNREAD_JERSEY).length;
+    return (
+      <div className="mt-3 rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-navy-950">{sheet.autoReadAt ? '已自动认出号码并写入得分' : '已写入得分'}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              表上 A 队是{teams.A?.name ?? '主队'}。共 {ordered.length} 格{unread > 0 ? `，${unread} 格没认出号码` : ''}。
+            </p>
+          </div>
+          {links}
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {(['A', 'B'] as const).map((side) => (
+            <div key={side} className="rounded-lg border border-slate-200 px-3 py-2">
+              <p className="flex items-baseline justify-between text-sm">
+                <span className="font-semibold text-navy-950">{teams[side]?.name ?? `${side} 队`}</span>
+                <span className="text-lg font-bold tabular-nums text-navy-950">{tally.totals[side]}</span>
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {(teams[side]?.players ?? [])
+                  .filter((player) => tally.points[pointsKey(side, player.number)])
+                  .map((player) => (
+                    <span key={player.id} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
+                      #{player.number} {player.name} {tally.points[pointsKey(side, player.number)]} 分
+                    </span>
+                  ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        {tally.warnings.length > 0 && (
+          <ul className="mt-3 list-disc rounded-lg border border-amber-200 bg-amber-50 py-2 pl-7 pr-3 text-xs leading-5 text-amber-900">
+            {tally.warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        )}
+        <button type="button" onClick={() => setEditing(true)} className="mt-3 text-xs font-medium text-slate-500 hover:text-gdut-700">
+          号码认错了？逐格修改
+        </button>
+      </div>
+    );
+  }
 
   function focusAfter(key: string) {
     const next = ordered[ordered.findIndex((cell) => cellKey(cell) === key) + 1];
@@ -108,9 +179,7 @@ export default function FibaReview({
           </p>
         </div>
         <div className="flex items-center gap-3 text-xs">
-          <a href={sheet.alignedUrl} target="_blank" rel="noreferrer" className="font-medium text-gdut-700 hover:text-gdut-900">
-            拉正后的整表
-          </a>
+          {links}
           <span className="text-slate-500">
             已看 {reviewed} / {ordered.length} 格
           </span>
@@ -286,35 +355,44 @@ function CornerPicker({
   matchId,
   statSheet,
   onSheet,
+  onSaved,
+  onCancel,
 }: {
   matchId: string;
   statSheet: MatchStatSheet;
   onSheet: (statSheet: MatchStatSheet) => void;
+  onSaved: (match: Match) => void;
+  onCancel?: () => void;
 }) {
   const [points, setPoints] = useState<[number, number][]>([]);
   const [shown, setShown] = useState<[number, number][]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const image = useRef<HTMLImageElement>(null);
 
-  function pick(event: MouseEvent<HTMLImageElement>) {
-    if (points.length >= 4) return;
-    const image = event.currentTarget;
-    const rect = image.getBoundingClientRect();
+  function pick(event: MouseEvent<HTMLDivElement>) {
+    if (points.length >= 4 || !image.current) return;
+    const frame = event.currentTarget.getBoundingClientRect();
+    const rect = image.current.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    setPoints((current) => [...current, [(x * image.naturalWidth) / rect.width, (y * image.naturalHeight) / rect.height]]);
-    setShown((current) => [...current, [(x / rect.width) * 100, (y / rect.height) * 100]]);
+    setPoints((current) => [
+      ...current,
+      [(x * image.current!.naturalWidth) / rect.width, (y * image.current!.naturalHeight) / rect.height],
+    ]);
+    setShown((current) => [...current, [event.clientX - frame.left, event.clientY - frame.top]]);
   }
 
   async function align(withCorners: boolean) {
     setBusy(true);
     setError('');
     try {
-      const result = await api<{ statSheet: MatchStatSheet }>(`/api/admin/matches/${matchId}/stat-sheet/align`, {
+      const result = await api<{ statSheet: MatchStatSheet; match: Match }>(`/api/admin/matches/${matchId}/stat-sheet/align`, {
         method: 'POST',
         body: JSON.stringify(withCorners ? { corners: points.flat() } : {}),
       });
-      onSheet(result.statSheet);
+      if (result.statSheet.scoresheet?.autoReadAt) onSaved(result.match);
+      else onSheet(result.statSheet);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '切格失败');
     } finally {
@@ -326,19 +404,22 @@ function CornerPicker({
     <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
       <p className="text-sm font-semibold text-navy-950">表格还没切好格</p>
       <p className="mt-1 text-xs leading-5 text-slate-600">
-        先试「自动切格」。不行的话，在照片上依次点表格外框的四个角（大框最外圈，不是纸张边缘），再点「按四个角切格」。
+        先试「自动切格」。不行的话，在照片上依次点表格外框的四个角（大框最外圈，不是纸张边缘），再点「按四个角切格」。角被拍到照片外面时，就点在照片外灰色区域里估计的位置。
       </p>
-      <div className="relative mt-3 inline-block max-w-full">
+      <div
+        onClick={pick}
+        className="relative mt-3 inline-block max-w-full cursor-crosshair rounded-lg bg-slate-200/70 p-10"
+      >
         <img
+          ref={image}
           src={statSheet.imageUrl}
           alt="技术统计表原图"
-          onClick={pick}
-          className="max-h-[32rem] max-w-full cursor-crosshair rounded border border-slate-200 bg-white"
+          className="block max-h-[32rem] max-w-full rounded border border-slate-200 bg-white"
         />
         {shown.map(([x, y], index) => (
           <span
             key={index}
-            style={{ left: `${x}%`, top: `${y}%` }}
+            style={{ left: x, top: y }}
             className="pointer-events-none absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-gdut-600 text-[10px] font-bold text-white"
           >
             {index + 1}
@@ -348,7 +429,7 @@ function CornerPicker({
       {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" onClick={() => void align(false)} disabled={busy} className="btn-secondary">
-          {busy ? '正在切格…' : '自动切格'}
+          {busy ? '正在切格、认号码，约一两分钟…' : '自动切格'}
         </button>
         <button type="button" onClick={() => void align(true)} disabled={busy || points.length !== 4} className="btn-primary">
           按四个角切格（{points.length}/4）
@@ -363,6 +444,11 @@ function CornerPicker({
             className="btn-secondary"
           >
             重新点
+          </button>
+        )}
+        {onCancel && (
+          <button type="button" onClick={onCancel} disabled={busy} className="btn-secondary">
+            取消
           </button>
         )}
       </div>

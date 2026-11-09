@@ -1,7 +1,7 @@
 import type { Division, Match, Side, Sport, Stage } from '../types';
 import { computeStandings, type StandingRow } from './standings';
 
-const STAGE_RANK: Record<Stage, number> = { group: 0, R16: 1, QF: 2, SF: 3, '3rd': 4, F: 4 };
+const STAGE_RANK: Record<Stage, number> = { group: 0, single: 0, R16: 1, QF: 2, SF: 3, '3rd': 4, F: 4 };
 
 export function winnerSide(m: Match): Side | null {
   if (m.status !== 'finished') return null;

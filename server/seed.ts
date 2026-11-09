@@ -21,7 +21,7 @@ export function seedIfEmpty(): void {
     for (const sport of SPORTS) {
       const file = JSON.parse(readFileSync(`src/data/${sport}.json`, 'utf8')) as { matches: Match[] };
       const leagueId = `seed-${sport}`;
-      insertLeague({ id: leagueId, sport, name: '2026 校级联赛', season: '2026 秋季', level: 'school', createdBy: '', published: true });
+      insertLeague({ id: leagueId, sport, name: '2026 校级联赛', season: '2026 秋季', level: 'school', kind: 'league', createdBy: '', published: true });
 
       const used = new Set<string>();
       for (const match of file.matches) {

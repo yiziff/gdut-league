@@ -11,7 +11,9 @@ export function isLeagueLevel(value: string): value is LeagueLevel {
   return LEAGUE_LEVELS.some((item) => item.id === value);
 }
 export type Division = 'men' | 'women' | 'mixed';
-export type Stage = 'group' | 'R16' | 'QF' | 'SF' | 'F' | '3rd';
+export type Stage = 'group' | 'R16' | 'QF' | 'SF' | 'F' | '3rd' | 'single';
+/** league：多队联赛；single：单场比赛，只有两支队伍和一场比赛 */
+export type LeagueKind = 'league' | 'single';
 export type MatchStatus = 'scheduled' | 'live' | 'finished';
 export type Side = 'home' | 'away';
 
@@ -21,6 +23,7 @@ export interface League {
   name: string;
   season: string;
   level: LeagueLevel;
+  kind: LeagueKind;
   /** 创建时上传的标志，站内路径。没有则为空字符串 */
   logo?: string;
   /** 登录管理后台时填写的名字。旧数据可能为空 */
@@ -99,17 +102,21 @@ export interface FibaScoreCell {
   side: 'A' | 'B';
   total: number;
   imageUrl: string;
+  /** OCR 对这格号码的几次识别：文字和置信度 */
+  reads?: [string, number][];
 }
 
-/** FIBA 记录表切格结果，以及管理员逐格确认的球衣号。 */
+/** FIBA 记录表切格结果，以及自动识别或管理员改过的球衣号。 */
 export interface FibaScoresheet {
   alignedUrl: string;
   finalUrl: string;
   cells: FibaScoreCell[];
   /** 主队在表上是 A 队还是 B 队 */
   homeSide?: 'A' | 'B';
-  /** key 为 `${side}:${total}`，值为球衣号；空字符串表示这格没写号码 */
+  /** key 为 `${side}:${total}`，值为球衣号；空字符串表示这格没写号码，? 表示没认出 */
   jerseys?: Record<string, string>;
+  /** 号码是机器自动认的时间；管理员手动改过后清空 */
+  autoReadAt?: string;
   reviewedAt?: string;
 }
 

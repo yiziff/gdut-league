@@ -17,7 +17,7 @@ export interface TeamSportEntry {
   matches: Match[];
 }
 
-const STAGE_DEPTH: Record<Stage, number> = { group: 0, R16: 1, QF: 2, SF: 3, '3rd': 3, F: 4 };
+const STAGE_DEPTH: Record<Stage, number> = { group: 0, single: 0, R16: 1, QF: 2, SF: 3, '3rd': 3, F: 4 };
 
 export function teamMatches(data: AppData, teamId: string): Match[] {
   return data.allMatches.filter((match) => match.home === teamId || match.away === teamId);
@@ -69,6 +69,11 @@ export function placement(data: AppData, entry: TeamSportEntry, teamId: string):
     return won ? '季军' : '第四名';
   }
   const last = entry.matches[entry.matches.length - 1];
+  if (last.stage === 'single') {
+    if (last.status !== 'finished') return '比赛中';
+    const winner = winnerSide(last);
+    return !winner ? '平' : last[winner] === teamId ? '胜' : '负';
+  }
   if (last.status === 'finished' && last.stage !== 'group' && winnerSide(last) && last[winnerSide(last)!] !== teamId) {
     return `止步${({ R16: '16强', QF: '8强', SF: '4强' } as Record<string, string>)[last.stage] ?? ''}`;
   }
