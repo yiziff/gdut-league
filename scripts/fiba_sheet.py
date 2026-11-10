@@ -1,8 +1,9 @@
 """FIBA 记录表切格工具。
 
-extract <照片> <输出目录> [--corners x1,y1,x2,y2,x3,y3,x4,y4] [--read]
+extract <照片> <输出目录> [--corners x1,y1,x2,y2,x3,y3,x4,y4] [--read] [--tiles]
     拉正照片，直接在照片上找累积分区格线，切出写了字的号码格，结果 JSON 输出到 stdout。
     加 --read 时用 PaddleOCR 认每格的手写号码，每格给出几种裁法的识别文字和置信度。
+    加 --tiles 时把每队的号码格拼成带编号的大图，给看图大模型认号码。
     设置 FIBA_DEBUG=1 时把每格笔迹量打到 stderr，并在输出目录画 grid.jpg。
 """
 
@@ -67,31 +68,34 @@ def line_masks(binary, scale):
     return horizontal, vertical
 
 
-def find_form_corners(image):
-    """表格最外圈的框：横竖线叠加后面积最大的轮廓。"""
+def form_corner_candidates(image):
+    """表格最外圈的框：横竖线叠加后面积最大的轮廓。
+    斜着拍时竖线短而歪，一组参数容易漏线连不成框，所以换几组线长和加粗程度各找一次，交给切格结果挑。"""
     height, width = image.shape[:2]
     scale = min(1.0, 1600 / max(height, width))
     small = cv2.resize(image, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA) if scale < 1 else image
     gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
-    horizontal, vertical = line_masks(binary_ink(gray), 25)
-    grid = cv2.dilate(cv2.bitwise_or(horizontal, vertical), np.ones((5, 5), np.uint8))
-    contours, _ = cv2.findContours(grid, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    binary = binary_ink(gray)
     image_area = gray.shape[0] * gray.shape[1]
-    best = None
-    best_area = 0
-    for contour in contours:
-        area = cv2.contourArea(contour)
-        if area < image_area * 0.15 or area <= best_area:
-            continue
-        hull = cv2.convexHull(contour)
-        approx = cv2.approxPolyDP(hull, 0.02 * cv2.arcLength(hull, True), True)
-        if len(approx) != 4:
-            approx = cv2.boxPoints(cv2.minAreaRect(hull)).reshape(-1, 1, 2)
-        best = approx
-        best_area = area
-    if best is None:
-        return None
-    return order_corners(best.reshape(4, 2) / scale)
+    candidates = []
+    for line_scale in (25, 50, 80):
+        horizontal, vertical = line_masks(binary, line_scale)
+        for thicken in (5, 11):
+            grid = cv2.dilate(cv2.bitwise_or(horizontal, vertical), np.ones((thicken, thicken), np.uint8))
+            contours, _ = cv2.findContours(grid, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if not contours:
+                continue
+            contour = max(contours, key=cv2.contourArea)
+            if not image_area * 0.15 <= cv2.contourArea(contour) <= image_area * 0.95:
+                continue
+            hull = cv2.convexHull(contour)
+            approx = cv2.approxPolyDP(hull, 0.02 * cv2.arcLength(hull, True), True)
+            if len(approx) != 4:
+                approx = cv2.boxPoints(cv2.minAreaRect(hull)).reshape(-1, 1, 2)
+            corners = order_corners(approx.reshape(4, 2) / scale)
+            if not any(np.abs(corners - other).max() < 10 for other in candidates):
+                candidates.append(corners)
+    return candidates
 
 
 def warp(image, corners):
@@ -249,17 +253,34 @@ def locate_grid(warped, ink):
     return rows, columns, quality
 
 
-def aligned_sheet(image, corners_arg):
+def aligned_grid(image, corners_arg):
+    """拉正并定格。手点了角就用手点的；否则每个候选外框都试切一遍，取格线对得最齐的。"""
     if corners_arg:
         values = [float(value) for value in corners_arg.split(",")]
         if len(values) != 8:
             raise SheetError("corners", "四个角坐标格式不对")
-        corners = order_corners(values)
+        candidates = [order_corners(values)]
     else:
-        corners = find_form_corners(image)
-        if corners is None:
+        candidates = form_corner_candidates(image)
+        if not candidates:
             raise SheetError("align", "找不到表格外框，请把四个角都拍进去，或手动点四个角")
-    return warp(image, corners)
+    best = None
+    error = None
+    for corners in candidates:
+        warped = warp(image, corners)
+        ink = ink_map(warped)
+        try:
+            rows, columns, quality = locate_grid(warped, ink)
+        except SheetError as failure:
+            error = failure
+            continue
+        if best is None or quality > best[4]:
+            best = (warped, ink, rows, columns, quality)
+        if quality >= 0.95:
+            break
+    if best is None:
+        raise error
+    return best
 
 
 def draw_grid(warped, rows, columns, path):
@@ -299,6 +320,50 @@ def jersey_crops(warped, ink, top, bottom, left, right):
     return [pad(tight), pad(wide)]
 
 
+TILES_PER_SHEET = 24
+TILE_COLUMNS = 6
+
+
+def context_tile(warped, rows, columns, row, column, label):
+    """号码格连同左右半格、上下半行一起裁出来，蓝框标出目标格，左上角写编号，给看图大模型用。"""
+    top, bottom = rows[row], rows[row + 1]
+    height = bottom - top
+    width = columns[column + 1] - columns[column]
+    left, right = columns[column] - width * 0.6, columns[column + 1] + width * 0.6
+    t, b = int(max(0, top - height * 0.6)), int(min(CANVAS_H, bottom + height * 0.6))
+    l, r = int(max(0, left)), int(min(CANVAS_W, right))
+    piece = warped[t:b, l:r].copy()
+    box = (int(columns[column] - l), int(top - t), int(columns[column + 1] - l), int(bottom - t))
+    cv2.rectangle(piece, box[:2], box[2:], (255, 0, 0), 2)
+    piece = cv2.resize(piece, (180, 150), interpolation=cv2.INTER_CUBIC)
+    tile = cv2.copyMakeBorder(piece, 30, 6, 6, 6, cv2.BORDER_CONSTANT, value=(255, 255, 255))
+    cv2.putText(tile, f"#{label}", (8, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 200), 2)
+    return tile
+
+
+def write_tile_sheets(warped, rows, columns, cells, output_dir):
+    """每队的号码格每 24 个拼成一张图，返回每张图对应的累计分。"""
+    sheets = []
+    for side in ("A", "B"):
+        own = [cell for cell in cells if cell["side"] == side]
+        for start in range(0, len(own), TILES_PER_SHEET):
+            chunk = own[start : start + TILES_PER_SHEET]
+            tiles = []
+            for index, cell in enumerate(chunk):
+                block, row = divmod(cell["total"] - 1, ROWS)
+                column = block * 4 + (0 if side == "A" else 3)
+                tiles.append(context_tile(warped, rows, columns, row, column, index + 1))
+            blank = np.full_like(tiles[0], 255)
+            tiles += [blank] * (-len(tiles) % TILE_COLUMNS)
+            grid = np.vstack(
+                [np.hstack(tiles[i : i + TILE_COLUMNS]) for i in range(0, len(tiles), TILE_COLUMNS)]
+            )
+            name = f"tiles-{side}-{start // TILES_PER_SHEET + 1}.jpg"
+            cv2.imwrite(os.path.join(output_dir, name), grid, [cv2.IMWRITE_JPEG_QUALITY, 90])
+            sheets.append({"image": name, "side": side, "totals": [cell["total"] for cell in chunk]})
+    return sheets
+
+
 def read_jerseys(crops):
     os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
     try:
@@ -315,10 +380,8 @@ def read_jerseys(crops):
     return reads
 
 
-def extract(source, output_dir, corners_arg=None, read=False):
-    warped = aligned_sheet(read_image(source), corners_arg)
-    ink = ink_map(warped)
-    rows, columns, quality = locate_grid(warped, ink)
+def extract(source, output_dir, corners_arg=None, read=False, tiles=False):
+    warped, ink, rows, columns, quality = aligned_grid(read_image(source), corners_arg)
     if quality < 0.6 and not corners_arg:
         raise SheetError("align", "表格没对齐，请正对表格、四个角拍全后重拍，或手动点四个角")
 
@@ -372,6 +435,8 @@ def extract(source, output_dir, corners_arg=None, read=False):
     payload = {"ok": True, "quality": round(quality, 2), "aligned": "aligned.jpg", "final": "final.jpg", "score": cells}
     if read_error:
         payload["readError"] = read_error
+    if tiles and cells:
+        payload["tiles"] = write_tile_sheets(warped, rows, columns, cells, output_dir)
     emit(payload)
 
 
@@ -385,7 +450,7 @@ def option(rest, name):
 def main(argv):
     try:
         if len(argv) >= 4 and argv[1] == "extract":
-            extract(argv[2], argv[3], option(argv[4:], "--corners"), "--read" in argv[4:])
+            extract(argv[2], argv[3], option(argv[4:], "--corners"), "--read" in argv[4:], "--tiles" in argv[4:])
         else:
             raise SheetError("usage", __doc__.strip())
     except SheetError as error:

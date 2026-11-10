@@ -2,13 +2,14 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { readAvatarFile } from '../../lib/logoFile';
 import { api, ApiError } from '../admin/api';
-import { usePlayerSession, type PlayerProfile } from './session';
+import { AccountSwitcher, NeedProfile } from './AccountSwitcher';
+import { usePlayerSession, type MePayload } from './session';
 
 const fieldClass = 'field mt-1.5 w-full';
 
 export default function PlayerMe() {
   const navigate = useNavigate();
-  const { profile, ready, setProfile } = usePlayerSession();
+  const { user, profile, ready, setMe } = usePlayerSession();
   const [school, setSchool] = useState('');
   const [college, setCollege] = useState('');
   const [className, setClassName] = useState('');
@@ -38,7 +39,7 @@ export default function PlayerMe() {
   }, [profile]);
 
   if (!ready) return <p className="py-10 text-center text-sm text-slate-400">加载中…</p>;
-  if (!profile) {
+  if (!user) {
     return (
       <div className="surface mx-auto max-w-lg px-4 py-8 text-center">
         <p className="text-sm text-slate-500">登录后可以改自己的资料。</p>
@@ -48,6 +49,17 @@ export default function PlayerMe() {
       </div>
     );
   }
+  if (!profile) {
+    return (
+      <div className="mx-auto max-w-lg space-y-3">
+        <NeedProfile action="可以改自己的资料" />
+        <button type="button" onClick={() => void logout()} className="w-full py-1 text-sm font-medium text-slate-400 hover:text-red-600">
+          退出登录{user.phone ? `（${user.phone}）` : ''}
+        </button>
+      </div>
+    );
+  }
+  const current = profile;
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -55,13 +67,12 @@ export default function PlayerMe() {
     setNotice('');
     setPending(true);
     try {
-      const next = await api<PlayerProfile>('/api/player/me', {
+      const next = await api<MePayload>('/api/player/me', {
         method: 'PATCH',
-        body: JSON.stringify({ school, college, className, name, number, position, gender, height, weight, avatar }),
+        body: JSON.stringify({ playerId: current.player.id, school, college, className, name, number, position, gender, height, weight, avatar }),
       });
-      setProfile(next);
-      setAvatar(next.player.avatar ?? '');
-      setNotice('已保存。');
+      setMe(next);
+      setNotice('已保存。姓名、学校和身体数据会同步到你名下所有队伍。');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '保存失败');
     } finally {
@@ -71,8 +82,19 @@ export default function PlayerMe() {
 
   async function logout() {
     await api('/api/player/logout', { method: 'POST' });
-    setProfile(null);
+    setMe(null);
     navigate('/player/login');
+  }
+
+  async function unclaim() {
+    if (!window.confirm(`解绑「${current.team.name}」的 ${current.player.number} 号？解绑后这个名单可以被别人认领。`)) return;
+    setError('');
+    setNotice('');
+    try {
+      setMe(await api<MePayload>(`/api/player/claim/${current.player.id}`, { method: 'DELETE' }));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '解绑失败');
+    }
   }
 
   async function pickAvatar(file: File | undefined) {
@@ -88,6 +110,8 @@ export default function PlayerMe() {
   const place = [school, college].filter(Boolean).join(' · ');
 
   return (
+    <div className="mx-auto max-w-2xl">
+    <AccountSwitcher />
     <form onSubmit={(event) => void save(event)} className="mx-auto max-w-2xl overflow-hidden rounded-2xl border border-[#f3d7c2] bg-white shadow-[0_22px_44px_-30px_rgb(196_92_36_/_50%)]">
       <div className="bg-[linear-gradient(145deg,#fff8f2_0%,#ffe7d0_100%)] px-6 pt-7 pb-16 sm:px-8">
         <p className="text-[11px] font-bold tracking-[0.18em] text-[#c45c22] uppercase">Player profile</p>
@@ -191,10 +215,68 @@ export default function PlayerMe() {
         <button type="submit" disabled={pending} className="btn-primary w-full justify-center disabled:opacity-60">
           {pending ? '保存中…' : '保存资料'}
         </button>
-        <button type="button" onClick={() => void logout()} className="w-full py-1 text-sm font-medium text-slate-400 hover:text-red-600">
-          退出登录
-        </button>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-sm">
+          <span className="text-slate-400">账号 {user.phone || '微信登录'}</span>
+          <div className="flex gap-4">
+            <Link to="/player/claim" className="font-medium text-gdut-700">
+              认领更多名单
+            </Link>
+            <button type="button" onClick={() => void unclaim()} className="font-medium text-slate-400 hover:text-red-600">
+              解绑这个名单
+            </button>
+            <button type="button" onClick={() => void logout()} className="font-medium text-slate-400 hover:text-red-600">
+              退出登录
+            </button>
+          </div>
+        </div>
       </div>
+    </form>
+    <PasswordCard hasPassword={user.hasPassword} />
+    </div>
+  );
+}
+
+function PasswordCard({ hasPassword }: { hasPassword: boolean }) {
+  const [oldPassword, setOldPassword] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [pending, setPending] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError('');
+    setNotice('');
+    setPending(true);
+    try {
+      await api('/api/player/password', { method: 'POST', body: JSON.stringify({ oldPassword, password, confirm }) });
+      setOldPassword('');
+      setPassword('');
+      setConfirm('');
+      setNotice('密码已更新');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '修改失败');
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <form onSubmit={(event) => void submit(event)} className="mx-auto mt-4 max-w-2xl space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
+      <h2 className="text-sm font-semibold text-navy-950">{hasPassword ? '修改密码' : '设置密码'}</h2>
+      {hasPassword && (
+        <input value={oldPassword} onChange={(event) => setOldPassword(event.target.value)} type="password" autoComplete="current-password" placeholder="原密码" className={fieldClass} required />
+      )}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="new-password" placeholder="新密码，至少 6 位" className={fieldClass} required />
+        <input value={confirm} onChange={(event) => setConfirm(event.target.value)} type="password" autoComplete="new-password" placeholder="再输入一次" className={fieldClass} required />
+      </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {notice && <p className="text-sm text-emerald-700">{notice}</p>}
+      <button type="submit" disabled={pending} className="btn-secondary">
+        {pending ? '保存中…' : '保存密码'}
+      </button>
     </form>
   );
 }

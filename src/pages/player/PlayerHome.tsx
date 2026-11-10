@@ -6,24 +6,31 @@ import { usePlayerSession } from './session';
 
 export default function PlayerHome() {
   const { leagues, allMatches } = useData();
-  const { profile } = usePlayerSession();
+  const { user, accounts, profile } = usePlayerSession();
   const upcoming = allMatches.filter((match) => match.status !== 'finished').slice(0, 5);
 
   return (
     <div className="space-y-8">
       <section className="hero-panel px-5 py-7 sm:px-8">
-        {profile?.player.avatar ? (
-          <div className="hero-portrait" aria-hidden="true">
-            <img src={profile.player.avatar} alt="" />
-          </div>
-        ) : null}
+        <div className="hero-cameo" aria-hidden="true">
+          <img src={`${import.meta.env.BASE_URL}player/lebron.png`} alt="" />
+        </div>
         <span className="absolute top-0 left-0 h-1 w-24 bg-player-500" aria-hidden="true" />
         <p className="text-xs font-semibold tracking-[0.16em] text-white/75 uppercase">Player center</p>
         <h1 className="mt-2 text-2xl font-bold tracking-tight text-white">{profile ? `${profile.player.name}，你好` : '球员中心'}</h1>
-        <p className="mt-2 text-sm text-white/80">{profile ? `${profile.team.name} · ${profile.league.name}` : '登录后查看本队赛程、生涯数据与个人资料。'}</p>
+        <p className="mt-2 text-sm text-white/80">
+          {profile
+            ? `${profile.team.name} · ${profile.league.name}${accounts.length > 1 ? `，另有 ${accounts.length - 1} 支队伍` : ''}`
+            : user
+              ? '账号已登录，还没认领名单。认领后查看本队赛程和生涯数据。'
+              : '用手机号登录后查看本队赛程、生涯数据与个人资料。'}
+        </p>
         {!profile && (
-          <Link to="/player/login" className="mt-5 inline-flex rounded-lg bg-white px-4 py-2 text-sm font-semibold text-navy-950 hover:bg-slate-100">
-            球员登录
+          <Link
+            to={user ? '/player/claim' : '/player/login'}
+            className="mt-5 inline-flex rounded-lg bg-white px-4 py-2 text-sm font-semibold text-navy-950 hover:bg-slate-100"
+          >
+            {user ? '认领我的名单' : '球员登录'}
           </Link>
         )}
       </section>

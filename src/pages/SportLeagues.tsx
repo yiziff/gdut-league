@@ -18,11 +18,20 @@ export default function SportLeagues() {
   const { sport } = useParams();
   const { leagues } = useData();
   const [query, setQuery] = useState('');
+  const [level, setLevel] = useState<LeagueLevel | 'all'>('all');
   if (!isSport(sport)) return <NotFound />;
   const meta = SPORT_MAP[sport];
   const q = query.trim();
   const all = leagues.filter((item) => item.league.sport === sport);
-  const list = all.filter((item) => !q || item.league.name.includes(q) || item.league.season.includes(q));
+  const list = all.filter(
+    (item) =>
+      (level === 'all' || item.league.level === level) &&
+      (!q || item.league.name.includes(q) || item.league.season.includes(q)),
+  );
+  const levelTabs = [
+    { id: 'all' as const, label: '全部', count: all.length },
+    ...LEAGUE_LEVELS.map((item) => ({ ...item, count: all.filter((entry) => entry.league.level === item.id).length })),
+  ];
 
   return (
     <div>
@@ -35,7 +44,22 @@ export default function SportLeagues() {
         <p className="masthead-copy mt-4 text-sm">查看当前赛季全部{meta.name}联赛及比赛进度</p>
       </div>
       {all.length > 0 && (
-        <div className="mb-4 flex justify-end">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="level-filter" role="tablist" aria-label="联赛级别">
+            {levelTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={level === tab.id}
+                onClick={() => setLevel(tab.id)}
+                className={level === tab.id ? 'is-active' : ''}
+              >
+                {tab.label}
+                <span>{tab.count}</span>
+              </button>
+            ))}
+          </div>
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -52,7 +76,11 @@ export default function SportLeagues() {
           </Link>
         </div>
       )}
-      {all.length > 0 && list.length === 0 && <div className="empty-state">没有找到联赛</div>}
+      {all.length > 0 && list.length === 0 && (
+        <div className="empty-state">
+          {level === 'all' ? '没有找到联赛' : `没有找到${levelLabel(level)}联赛`}
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {list.map((item) => {
           const done = item.matches.filter((match) => match.status === 'finished').length;

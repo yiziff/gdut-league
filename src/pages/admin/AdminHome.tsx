@@ -216,6 +216,7 @@ function AdminHomeBody() {
 
       <LeagueGroups title="我创建的" leagues={catalog.filter((league) => league.createdBy === actor)} actor={actor} empty="你还没有创建联赛。" onRemove={remove} />
       <LeagueGroups title="其他联赛" leagues={catalog.filter((league) => league.createdBy !== actor)} actor={actor} empty="没有其他人创建的联赛。" onRemove={remove} />
+      <ResetPlayerPassword />
     </div>
   );
 }
@@ -287,6 +288,41 @@ function LeagueGroups({
           </div>
         );
       })}
+    </section>
+  );
+}
+
+function ResetPlayerPassword() {
+  const [phone, setPhone] = useState('');
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!window.confirm(`清空 ${phone} 的密码？对方要用这个手机号重新设置一个。`)) return;
+    setError('');
+    setNotice('');
+    try {
+      await api('/api/admin/users/reset-password', { method: 'POST', body: JSON.stringify({ phone }) });
+      setNotice('已清空。让对方在登录页选「第一次使用，设置密码」。');
+      setPhone('');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '清空失败');
+    }
+  }
+
+  return (
+    <section className="mb-10">
+      <h2 className="section-title">球员忘记密码</h2>
+      <p className="mt-1 mb-4 text-sm text-slate-500">没有短信验证，只能由你清空密码，对方再用原来的手机号设一个新的。</p>
+      <form onSubmit={(event) => void submit(event)} className="flex flex-wrap items-center gap-3">
+        <input value={phone} onChange={(event) => setPhone(event.target.value)} inputMode="tel" placeholder="球员手机号" className="field w-56" required />
+        <button type="submit" className="btn-secondary">
+          清空密码
+        </button>
+      </form>
+      {notice && <p className="mt-3 text-sm text-emerald-700">{notice}</p>}
+      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
     </section>
   );
 }

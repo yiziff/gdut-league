@@ -9,9 +9,19 @@ type Filter = 'all' | Sport;
 export default function Events() {
   const { leagues } = useData();
   const [filter, setFilter] = useState<Filter>('all');
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
   const visible = useMemo(
-    () => leagues.filter((item) => filter === 'all' || item.league.sport === filter),
-    [filter, leagues],
+    () =>
+      leagues.filter(
+        (item) =>
+          (filter === 'all' || item.league.sport === filter) &&
+          (!q ||
+            [item.league.name, item.league.season, ...item.teams.map((team) => team.name)].some((text) =>
+              text.toLowerCase().includes(q),
+            )),
+      ),
+    [filter, leagues, q],
   );
 
   return (
@@ -26,7 +36,7 @@ export default function Events() {
         </div>
       </div>
 
-      <div className="subnav-panel mb-8">
+      <div className="subnav-panel mb-8 flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
         <div className="flex min-w-max gap-7">
           <button
             type="button"
@@ -57,10 +67,17 @@ export default function Events() {
             );
           })}
         </div>
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="搜索赛事名称、赛季或队伍"
+          className="field mb-2 w-full sm:w-72"
+        />
       </div>
 
       {visible.length === 0 ? (
-        <div className="empty-state">这个项目暂时没有联赛</div>
+        <div className="empty-state">{q ? `没有找到和「${query.trim()}」相关的赛事` : '这个项目暂时没有联赛'}</div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {visible.map((item) => {

@@ -43,8 +43,11 @@ export default function StatSheetScanner({
   hasExistingStats,
   fiba = false,
   onResult,
+  apiBase = '/api/admin/matches',
 }: {
   matchId?: string;
+  /** 约战比赛的负责人走 /api/clubs/matches */
+  apiBase?: string;
   fiba?: boolean;
   template?: MatchStatSheetTemplate;
   statSheet?: MatchStatSheet;
@@ -74,7 +77,7 @@ export default function StatSheetScanner({
     setUnmatched([]);
     setNotice('');
     try {
-      const result = await api<RecognitionResponse>(`/api/admin/matches/${matchId}/stat-sheet/recognize`, {
+      const result = await api<RecognitionResponse>(`${apiBase}/${matchId}/stat-sheet/recognize`, {
         method: 'POST',
         body: JSON.stringify({ image: dataUrl, score }),
       });
@@ -161,7 +164,7 @@ export default function StatSheetScanner({
           {!template && !fiba && <span className="text-xs text-slate-400">没有空白模板时只留档，不自动填表。</span>}
           {fiba && (
             <span className="text-xs text-slate-400">
-              {recognizing ? '认号码要一到两分钟，请别关页面。' : 'FIBA 标准记录表：上传后自动认号码，按累积分算个人得分和比分。'}
+              {recognizing ? '正在认号码，请别关页面。' : 'FIBA 标准记录表：上传后自动认号码，按累积分算个人得分和比分。'}
             </span>
           )}
         </div>

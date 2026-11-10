@@ -22,6 +22,7 @@ import type {
 import { LEAGUE_LEVELS } from '../src/types.ts';
 import { summarizeCareer } from '../src/lib/career.ts';
 import {
+  assignModelAnswers,
   autoReadJerseys,
   pointsKey,
   tallyMarks,
@@ -39,31 +40,47 @@ import { addDays, roundRobinPairings } from '../src/lib/roundRobin.ts';
 import {
   clearPlayerCookie,
   clearSessionCookie,
-  createPlayerSession,
   createSession,
-  destroyPlayerSession,
+  createUserSession,
   destroySession,
+  destroyUserSession,
   passwordOk,
-  playerIdFromRequest,
   readPlayerToken,
   readCookie,
   renameSession,
+  requireUser,
   sessionName,
   sessionValid,
   setPlayerCookie,
   setSessionCookie,
 } from './auth.ts';
 import {
+  accountsOfUser,
   allMatches,
   allTeams,
+  attachOpenId,
+  bindByPhone,
+  claimCandidates,
+  claimCount,
   deleteLeague,
   deleteMatch,
   deleteMatches,
   removeMatch,
   deletePlayer,
   deleteTeam,
-  findPlayerAccounts,
+  findUserByOpenId,
+  findUserByPhone,
   getPlayerAccount,
+  getUser,
+  insertUser,
+  ownerOf,
+  passwordHashOf,
+  renameUser,
+  rosterOwners,
+  setOwner,
+  setPassword,
+  type PlayerAccount,
+  type User,
   getLeague,
   getMatch,
   getTeam,
@@ -81,9 +98,13 @@ import {
   updatePlayer,
   updateTeam,
 } from './db.ts';
-import { extractFibaSheet, FibaSheetError, saveDigitSamples } from './fibaSheet.ts';
+import { extractFibaSheet, FibaSheetError, readJerseysWithModel, saveDigitSamples, type TileSheet } from './fibaSheet.ts';
 import { clearLeagueLogo, clearPlayerAvatar, saveLeagueLogo, savePlayerAvatar } from './logo.ts';
 import { seedIfEmpty } from './seed.ts';
+import { ApiError, oneOf, optionalText, text } from './http.ts';
+import { clearLoginFailure, hashPassword, loginBlocked, passwordFrom, passwordMatches, recordLoginFailure } from './password.ts';
+import { clubManagesMatch, registerClubRoutes } from './clubs.ts';
+import { maskPhone, normalizePhone } from '../src/lib/phone.ts';
 import {
   analyzeStatSheetTemplateImage,
   recognizeFilledStatSheet,
@@ -102,36 +123,12 @@ function loadEnv(): void {
 
 loadEnv();
 
-class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
-
 const SPORTS: Sport[] = ['basketball', 'football', 'badminton', 'volleyball', 'tabletennis'];
 const LEVELS: LeagueLevel[] = LEAGUE_LEVELS.map((item) => item.id);
 const DIVISIONS: Division[] = ['men', 'women', 'mixed'];
 const STAGES: Stage[] = ['group', 'R16', 'QF', 'SF', 'F', '3rd', 'single'];
 const STATUSES: MatchStatus[] = ['scheduled', 'live', 'finished'];
 const SIDES: Side[] = ['home', 'away'];
-
-function oneOf<T extends string>(value: unknown, allowed: readonly T[], label: string): T {
-  if (typeof value === 'string' && (allowed as readonly string[]).includes(value)) return value as T;
-  throw new ApiError(400, `${label}不正确`);
-}
-
-function text(value: unknown, label: string): string {
-  if (typeof value !== 'string' || !value.trim()) throw new ApiError(400, `请填写${label}`);
-  return value.trim();
-}
-
-function optionalText(value: unknown): string | undefined {
-  if (typeof value !== 'string' || !value.trim()) return undefined;
-  return value.trim();
-}
 
 function numberOrNull(value: unknown, label: string): number | null {
   if (value === '' || value == null) return null;
@@ -361,6 +358,7 @@ app.use('/api', (_req, res, next) => {
 });
 app.use(express.json({ limit: '4mb' }));
 app.use('/uploads', express.static(resolve('data/uploads'), { maxAge: '1h' }));
+registerClubRoutes(app);
 
 app.get('/api/leagues', (req, res) => {
   const sport = typeof req.query.sport === 'string' ? req.query.sport : undefined;
@@ -404,12 +402,70 @@ app.post('/api/admin/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-function requirePlayerAccount(req: Request) {
-  const id = playerIdFromRequest(req);
-  const account = id ? getPlayerAccount(id) : undefined;
-  if (!account) throw new ApiError(401, '请先登录');
+/** 本人名下的某个名单条目；不传 playerId 时取第一个。 */
+function ownAccount(user: User, playerId: unknown): PlayerAccount {
+  const accounts = accountsOfUser(user.id);
+  const account = typeof playerId === 'string' && playerId ? accounts.find((item) => item.player.id === playerId) : accounts[0];
+  if (!account) throw new ApiError(404, '你还没有认领名单');
   return account;
 }
+
+function mePayload(user: User) {
+  return {
+    user: { id: user.id, phone: maskPhone(user.phone), name: user.name, hasPassword: user.hasPassword },
+    accounts: accountsOfUser(user.id),
+  };
+}
+
+/** 登录成功：按手机号补绑名单，发 30 天会话。 */
+function issuePlayerSession(res: Response, user: User) {
+  let current = user;
+  const bound = current.phone ? bindByPhone(current.id, current.phone) : 0;
+  if (!current.name) {
+    const first = accountsOfUser(current.id)[0];
+    if (first) {
+      renameUser(current.id, first.player.name);
+      current = { ...current, name: first.player.name };
+    }
+  }
+  const token = createUserSession(current.id);
+  setPlayerCookie(res, token);
+  return { ...mePayload(current), token, bound };
+}
+
+/** 用小程序 wx.login 的 code 向微信换 openid。不需要用户授权，也不花钱。 */
+async function exchangeWxCode(code: string): Promise<string> {
+  const appid = process.env.WX_APPID ?? '';
+  const secret = process.env.WX_SECRET ?? '';
+  if (!appid || !secret) throw new ApiError(503, '小程序登录还没配置');
+  const url = new URL('https://api.weixin.qq.com/sns/jscode2session');
+  url.searchParams.set('appid', appid);
+  url.searchParams.set('secret', secret);
+  url.searchParams.set('js_code', code);
+  url.searchParams.set('grant_type', 'authorization_code');
+  let data: { openid?: string };
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    data = (await response.json()) as { openid?: string };
+  } catch {
+    throw new ApiError(502, '微信登录暂时失败，请稍后再试');
+  }
+  if (!data.openid) throw new ApiError(401, '微信登录没有成功，请重试');
+  return data.openid;
+}
+
+function phoneFrom(value: unknown, required: boolean): string {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw) {
+    if (required) throw new ApiError(400, '请填写手机号');
+    return '';
+  }
+  const phone = normalizePhone(raw);
+  if (!phone) throw new ApiError(400, '手机号不对');
+  return phone;
+}
+
+const MAX_CLAIMS = 5;
 
 function playerBody(body: unknown) {
   const source = (body ?? {}) as Record<string, unknown>;
@@ -470,70 +526,200 @@ function writePlayer(player: Player, mode: 'insert' | 'update'): void {
   }
 }
 
-app.post('/api/player/login', (req, res) => {
-  const name = text(req.body?.name, '姓名');
-  const number = text(req.body?.number, '号码');
-  const matches = findPlayerAccounts(name, number);
-  const requested = optionalText(req.body?.playerId);
-  const chosen = requested ? matches.filter((account) => account.player.id === requested) : matches;
-  if (chosen.length === 0) throw new ApiError(404, '没有这名队员，可以先报名');
-  if (chosen.length > 1) {
-    res.json({
-      status: 'choose',
-      choices: chosen.map((account) => ({
-        playerId: account.player.id,
-        teamName: account.team.name,
-        leagueName: account.league.name,
-        sport: account.league.sport,
-      })),
-    });
-    return;
+/** 第一次使用：设密码即注册。已经有账号但还没密码的（比如以前的验证码账号被清空密码），在这里补上。 */
+app.post('/api/player/register', (req, res) => {
+  const phone = phoneFrom(req.body?.phone, true);
+  const password = passwordFrom(req.body?.password);
+  if (password !== req.body?.confirm) throw new ApiError(400, '两次密码不一致');
+  let user = findUserByPhone(phone);
+  if (user?.hasPassword) throw new ApiError(409, '这个手机号已经注册，请直接登录');
+  const passwordHash = hashPassword(password);
+  const created = !user;
+  if (user) setPassword(user.id, passwordHash);
+  else {
+    user = { id: randomUUID(), phone, name: '', hasPassword: true };
+    insertUser(user, { passwordHash });
   }
-  setPlayerCookie(res, createPlayerSession(chosen[0].player.id));
-  res.json({ status: 'ok', ...chosen[0] });
+  res.status(created ? 201 : 200).json({ ...issuePlayerSession(res, { ...user, hasPassword: true }), created });
+});
+
+app.post('/api/player/login', (req, res) => {
+  const phone = phoneFrom(req.body?.phone, true);
+  if (loginBlocked(phone)) throw new ApiError(429, '密码错太多次，请 15 分钟后再试');
+  const user = findUserByPhone(phone);
+  const stored = user ? passwordHashOf(user.id) : '';
+  if (!user || !stored) throw new ApiError(404, '这个手机号还没注册，请先设置密码');
+  if (!passwordMatches(passwordFrom(req.body?.password), stored)) {
+    recordLoginFailure(phone);
+    throw new ApiError(401, '密码不对');
+  }
+  clearLoginFailure(phone);
+  res.json({ ...issuePlayerSession(res, user), created: false });
+});
+
+app.post('/api/player/password', (req, res) => {
+  const user = requireUser(req);
+  const password = passwordFrom(req.body?.password);
+  if (password !== req.body?.confirm) throw new ApiError(400, '两次密码不一致');
+  const stored = passwordHashOf(user.id);
+  if (stored && !passwordMatches(typeof req.body?.oldPassword === 'string' ? req.body.oldPassword : '', stored)) {
+    throw new ApiError(401, '原密码不对');
+  }
+  setPassword(user.id, hashPassword(password));
+  res.json({ ok: true });
+});
+
+/**
+ * 小程序 wx.login 拿到的 code，交给微信免费的 jscode2session 换成 openid。
+ * 带上手机号和密码时，把这个微信绑到已有的网站账号上。
+ */
+app.post('/api/player/wx-login', (req, res, next) => {
+  void (async () => {
+    const openid = await exchangeWxCode(text(req.body?.code, '登录凭证'));
+    let user = findUserByOpenId(openid);
+    let created = false;
+    if (!user) {
+      const phone = phoneFrom(req.body?.phone, false);
+      const rawPassword = typeof req.body?.password === 'string' ? req.body.password : '';
+      if (phone || rawPassword) {
+        const existing = phone ? findUserByPhone(phone) : undefined;
+        const stored = existing ? passwordHashOf(existing.id) : '';
+        if (!existing || !stored || !passwordMatches(passwordFrom(rawPassword), stored)) {
+          throw new ApiError(401, '手机号或密码不对，没有绑到已有账号');
+        }
+        attachOpenId(existing.id, openid);
+        user = getUser(existing.id)!;
+      } else {
+        user = { id: randomUUID(), phone: '', name: '', hasPassword: false };
+        insertUser(user, { wxOpenId: openid });
+        created = true;
+      }
+    }
+    res.status(created ? 201 : 200).json({ ...issuePlayerSession(res, user), created });
+  })().catch(next);
 });
 
 app.post('/api/player/logout', (req, res) => {
-  destroyPlayerSession(readPlayerToken(req));
+  destroyUserSession(readPlayerToken(req));
   clearPlayerCookie(res);
   res.json({ ok: true });
 });
 
+app.get('/api/player/me', (req, res) => {
+  res.json(mePayload(requireUser(req)));
+});
+
+/** 按姓名找可以认领的名单条目。没登记手机号的才能手动认领，登记了的只能用那个手机号登录自动绑定。 */
+app.get('/api/player/claim/search', (req, res) => {
+  const user = requireUser(req);
+  const name = text(req.query.name, '姓名');
+  const results = claimCandidates(name).map(({ player, team, league, owner, lastMatch }) => ({
+    playerId: player.id,
+    name: player.name,
+    number: player.number,
+    className: player.className,
+    college: player.college,
+    teamName: team.name,
+    leagueName: league.name,
+    sport: league.sport,
+    season: league.season,
+    lastMatch: lastMatch ?? null,
+    status:
+      owner.userId === user.id
+        ? 'mine'
+        : owner.userId
+          ? 'taken'
+          : owner.phone && owner.phone !== user.phone
+            ? 'phone'
+            : 'available',
+    phoneHint: owner.phone && owner.phone !== user.phone ? maskPhone(owner.phone) : '',
+  }));
+  res.json({ results });
+});
+
+app.post('/api/player/claim', (req, res) => {
+  const user = requireUser(req);
+  const account = getPlayerAccount(text(req.body?.playerId, '名单'));
+  const owner = account && ownerOf(account.player.id);
+  if (!account || !owner) throw new ApiError(404, '名单不存在');
+  if (owner.userId !== user.id) {
+    if (owner.userId) throw new ApiError(409, '这个名单已被其他账号认领。如果是你本人，请联系联赛组织者解绑');
+    if (owner.phone && owner.phone !== user.phone) {
+      throw new ApiError(403, `这个名单登记的手机号是 ${maskPhone(owner.phone)}，请用该手机号登录`);
+    }
+    if (accountsOfUser(user.id).some((item) => item.team.id === account.team.id)) {
+      throw new ApiError(409, '你在这支队伍里已经有一个名单了');
+    }
+    const viaPhone = owner.phone === user.phone;
+    if (!viaPhone && claimCount(user.id) >= MAX_CLAIMS) {
+      throw new ApiError(429, `一个账号最多自行认领 ${MAX_CLAIMS} 个名单，更多请联系联赛组织者`);
+    }
+    setOwner(account.player.id, { phone: user.phone, userId: user.id, via: viaPhone ? 'phone' : 'claim' });
+  }
+  if (!user.name) renameUser(user.id, account.player.name);
+  res.json(mePayload(getUser(user.id)!));
+});
+
+app.delete('/api/player/claim/:playerId', (req, res) => {
+  const user = requireUser(req);
+  const account = ownAccount(user, req.params.playerId);
+  const owner = ownerOf(account.player.id)!;
+  if (owner.via === 'phone') throw new ApiError(400, '这个名单按名单上的手机号绑定，认错了请联系联赛组织者改手机号');
+  setOwner(account.player.id, { phone: '', userId: '', via: '' });
+  res.json(mePayload(user));
+});
+
 app.post('/api/player/join', (req, res) => {
+  const user = requireUser(req);
   const team = getTeam(text(req.body?.teamId, '队伍'));
   if (!team) throw new ApiError(404, '队伍不存在');
+  if (accountsOfUser(user.id).some((item) => item.team.id === team.id)) throw new ApiError(409, '你已经在这支队伍的名单里了');
   const fields = playerBody(req.body);
   const player: Player = { id: randomUUID(), teamId: team.id, ...fields };
   writePlayer(player, 'insert');
-  const account = getPlayerAccount(player.id);
-  if (!account) throw new ApiError(500, '报名没有保存');
-  setPlayerCookie(res, createPlayerSession(player.id));
-  res.status(201).json({ status: 'ok', ...account });
+  setOwner(player.id, { phone: user.phone, userId: user.id, via: 'join' });
+  if (!user.name) renameUser(user.id, player.name);
+  res.status(201).json({ ...mePayload(getUser(user.id)!), playerId: player.id });
 });
 
-app.get('/api/player/me', (req, res) => {
-  res.json(requirePlayerAccount(req));
-});
-
+/** 改某个名单条目。号码、位置只改这一条；姓名、学校、身体数据、头像属于本人，同步到名下所有条目。 */
 app.patch('/api/player/me', (req, res) => {
-  const account = requirePlayerAccount(req);
+  const user = requireUser(req);
+  const account = ownAccount(user, req.body?.playerId);
   const fields = playerBody(req.body);
-  const avatar = avatarFromBody(account.player.id, req.body?.avatar, account.player.avatar ?? '');
-  const player: Player = { ...account.player, ...fields, avatar };
-  writePlayer(player, 'update');
-  res.json(getPlayerAccount(player.id));
+  const avatar = avatarFromBody(user.id, req.body?.avatar, account.player.avatar ?? '');
+  writePlayer({ ...account.player, ...fields, avatar }, 'update');
+  const { number: _number, position: _position, ...personal } = fields;
+  for (const other of accountsOfUser(user.id)) {
+    if (other.player.id === account.player.id) continue;
+    writePlayer({ ...other.player, ...personal, avatar }, 'update');
+  }
+  renameUser(user.id, fields.name);
+  res.json(mePayload(getUser(user.id)!));
 });
 
 app.get('/api/player/career', (req, res) => {
-  const account = requirePlayerAccount(req);
+  const user = requireUser(req);
+  const account = ownAccount(user, req.query.playerId);
   const summary = summarizeCareer(account.team.id, account.player.id, matchesOf(account.league.id));
   res.json({ sport: account.league.sport, ...summary });
 });
 
 app.use('/api/admin', (req, res, next) => {
   if (req.path === '/login' || req.path === '/logout') return next();
+  if (res.locals.clubManager) return next();
   if (!sessionValid(req)) return next(new ApiError(401, '请先登录'));
   next();
+});
+
+/** 球员忘了密码：清空后，对方用原来的手机号重新设置一个。 */
+app.post('/api/admin/users/reset-password', (req, res) => {
+  const phone = phoneFrom(req.body?.phone, true);
+  const user = findUserByPhone(phone);
+  if (!user) throw new ApiError(404, '没有这个手机号的账号');
+  setPassword(user.id, '');
+  clearLoginFailure(phone);
+  res.json({ ok: true });
 });
 
 app.get('/api/admin/me', (req, res) => {
@@ -697,6 +883,8 @@ app.post('/api/admin/leagues/:id/roster', (req, res) => {
   const result = transaction(() => {
     let teamsCreated = 0;
     let playersCreated = 0;
+    let withoutPhone = 0;
+    let boundNow = 0;
     let colorIndex = existing.length;
     const byName = new Map<string, Team>(existing.map((team) => [team.name, { ...team, players: [...(team.players ?? [])] }]));
     for (const incoming of imported) {
@@ -743,9 +931,16 @@ app.post('/api/admin/leagues/:id/roster', (req, res) => {
         }
         used.add(player.number);
         playersCreated += 1;
+        if (player.phone) {
+          const user = findUserByPhone(player.phone);
+          setOwner(created.id, { phone: player.phone, userId: user?.id ?? '', via: 'phone' });
+          if (user) boundNow += 1;
+        } else {
+          withoutPhone += 1;
+        }
       }
     }
-    return { teamsCreated, playersCreated, teamsTouched: imported.length };
+    return { teamsCreated, playersCreated, teamsTouched: imported.length, withoutPhone, boundNow };
   });
   res.status(201).json(result);
 });
@@ -850,7 +1045,7 @@ app.post('/api/admin/matches/:id/stat-sheet/recognize', (req, res, next) => {
     const match = getMatch(req.params.id);
     if (!match?.leagueId) throw new ApiError(404, '比赛不存在');
     const league = requireLeague(match.leagueId);
-    if (!canEditLeague(league, sessionName(req))) {
+    if (!mayEditMatchStats(req, league, match.id)) {
       throw new ApiError(403, `这个联赛由 ${league.createdBy} 创建，只有创建者可以上传技术统计`);
     }
     const image = typeof req.body?.image === 'string' ? req.body.image : '';
@@ -866,9 +1061,10 @@ app.post('/api/admin/matches/:id/stat-sheet/recognize', (req, res, next) => {
 
     if (match.sport === 'basketball') {
       try {
-        statSheet.scoresheet = await extractFibaSheet(match.id, statSheetPath(match.id));
+        const { sheet, tiles } = await extractFibaSheet(match.id, statSheetPath(match.id));
+        statSheet.scoresheet = sheet;
         match.statSheet = statSheet;
-        const warnings = autoApplyScoresheet(match);
+        const warnings = await autoApplyScoresheet(match, tiles);
         finishMatchWithSheet(match, match.statSheet);
         const recognized = Boolean(match.statSheet.scoresheet?.autoReadAt);
         res.json({
@@ -948,10 +1144,17 @@ function editableMatch(req: Request<{ id: string }>): Match {
   const match = getMatch(req.params.id);
   if (!match?.leagueId) throw new ApiError(404, '比赛不存在');
   const league = requireLeague(match.leagueId);
-  if (!canEditLeague(league, sessionName(req))) {
+  if (!mayEditMatchStats(req, league, match.id)) {
     throw new ApiError(403, `这个联赛由 ${league.createdBy} 创建，只有创建者可以修改技术统计`);
   }
   return match;
+}
+
+/** 联赛创建者，或者约战比赛里两队的负责人（经 /api/clubs/matches 转过来的请求）。 */
+function mayEditMatchStats(req: Request, league: League, matchId: string): boolean {
+  const clubUser = req.res?.locals.clubManager;
+  if (typeof clubUser === 'string' && clubManagesMatch(clubUser, matchId)) return true;
+  return canEditLeague(league, sessionName(req));
 }
 
 /** 重新切格。corners 是原图像素坐标（顺序不限），不传就自动找外框。 */
@@ -966,13 +1169,16 @@ app.post('/api/admin/matches/:id/stat-sheet/align', (req, res, next) => {
         throw new ApiError(400, '请在照片上点四个角');
       }
     }
+    let tiles: TileSheet[];
     try {
-      match.statSheet = { ...match.statSheet, scoresheet: await extractFibaSheet(match.id, statSheetPath(match.id), corners) };
+      const extracted = await extractFibaSheet(match.id, statSheetPath(match.id), corners);
+      match.statSheet = { ...match.statSheet, scoresheet: extracted.sheet };
+      tiles = extracted.tiles;
     } catch (error) {
       if (error instanceof FibaSheetError) throw new ApiError(400, error.message);
       throw error;
     }
-    const warnings = autoApplyScoresheet(match);
+    const warnings = await autoApplyScoresheet(match, tiles);
     updateMatch(match);
     res.json({ statSheet: match.statSheet, match, warnings });
   })().catch(next);
@@ -1018,14 +1224,24 @@ function applyJerseys(match: Match, homeSide: SheetSide, jerseys: Record<string,
   return tally;
 }
 
-/** 切格时已经认了号码，就直接对着名单写入得分。主客队没定或名单为空时只留切图。 */
-function autoApplyScoresheet(match: Match): string[] {
+/** 切格后自动认号码并对着名单写入得分：有号码大图就交给看图大模型，否则用本地 OCR 的结果。主客队没定或名单为空时只留切图。 */
+async function autoApplyScoresheet(match: Match, tiles: TileSheet[]): Promise<string[]> {
   const sheet = match.statSheet?.scoresheet;
-  if (!sheet || !sheet.cells.some((cell) => cell.reads)) return [];
+  if (!sheet || (tiles.length === 0 && !sheet.cells.some((cell) => cell.reads))) return [];
   const { home, away } = matchTeams(match);
   if (!home?.players?.length || !away?.players?.length) return ['两队名单还没导入，号码没法自动对上名单。'];
   const numbers = (team: Team) => (team.players ?? []).map((player) => player.number);
-  const { homeSide, jerseys } = autoReadJerseys(sheet.cells, numbers(home), numbers(away));
+  if (tiles.length === 0) {
+    const { homeSide, jerseys } = autoReadJerseys(sheet.cells, numbers(home), numbers(away));
+    return applyJerseys(match, homeSide, jerseys, true).warnings;
+  }
+  let answers: Record<string, string | null>;
+  try {
+    answers = await readJerseysWithModel(match.id, tiles, home, away);
+  } catch (error) {
+    return [`看图大模型认号失败，请逐格填号码：${error instanceof Error ? error.message : '未知错误'}`];
+  }
+  const { homeSide, jerseys } = assignModelAnswers(answers, numbers(home), numbers(away));
   return applyJerseys(match, homeSide, jerseys, true).warnings;
 }
 
@@ -1094,6 +1310,7 @@ app.post('/api/admin/teams/:id/players', (req, res) => {
     weight: '',
     avatar: '',
   };
+  const phone = phoneFrom(req.body?.phone, false);
   try {
     insertPlayer(player);
   } catch (error) {
@@ -1102,7 +1319,41 @@ app.post('/api/admin/teams/:id/players', (req, res) => {
     }
     throw error;
   }
+  if (phone) setOwner(player.id, { phone, userId: findUserByPhone(phone)?.id ?? '', via: 'phone' });
   res.status(201).json(player);
+});
+
+/** 名单的手机号和绑定情况，只给管理端，手机号打码。 */
+app.get('/api/admin/leagues/:id/owners', (req, res) => {
+  const league = requireLeague(req.params.id);
+  res.json(
+    rosterOwners(league.id).map((owner) => ({
+      playerId: owner.playerId,
+      phone: maskPhone(owner.phone),
+      hasPhone: Boolean(owner.phone),
+      bound: Boolean(owner.userId),
+      via: owner.via,
+      claimedAt: owner.claimedAt,
+      userPhone: maskPhone(owner.userPhone),
+    })),
+  );
+});
+
+/** 补填或修改名单手机号。已有这个手机号的账号就立即绑定过去，原来绑定的人对不上就解绑。 */
+app.patch('/api/admin/players/:id/phone', (req, res) => {
+  const owner = ownerOf(req.params.id);
+  if (!owner) throw new ApiError(404, '队员不存在');
+  const phone = phoneFrom(req.body?.phone, false);
+  const user = phone ? findUserByPhone(phone) : undefined;
+  if (user) setOwner(req.params.id, { phone, userId: user.id, via: 'phone' });
+  else setOwner(req.params.id, { phone, userId: '', via: '' });
+  res.json({ ok: true, bound: Boolean(user) });
+});
+
+app.post('/api/admin/players/:id/unbind', (req, res) => {
+  if (!ownerOf(req.params.id)) throw new ApiError(404, '队员不存在');
+  setOwner(req.params.id, { phone: '', userId: '', via: '' });
+  res.json({ ok: true });
 });
 
 app.delete('/api/admin/players/:id', (req, res) => {

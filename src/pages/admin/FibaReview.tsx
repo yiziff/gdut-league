@@ -12,8 +12,11 @@ export default function FibaReview({
   away,
   onSheet,
   onSaved,
+  apiBase = '/api/admin/matches',
 }: {
   matchId: string;
+  /** 约战比赛的负责人走 /api/clubs/matches */
+  apiBase?: string;
   statSheet: MatchStatSheet;
   home?: Team;
   away?: Team;
@@ -69,6 +72,7 @@ export default function FibaReview({
     return (
       <CornerPicker
         matchId={matchId}
+        apiBase={apiBase}
         statSheet={statSheet}
         onSheet={onSheet}
         onSaved={onSaved}
@@ -154,7 +158,7 @@ export default function FibaReview({
     setMessage('');
     try {
       const result = await api<{ match: Match; warnings: string[]; samples: number }>(
-        `/api/admin/matches/${matchId}/stat-sheet/review`,
+        `${apiBase}/${matchId}/stat-sheet/review`,
         { method: 'PUT', body: JSON.stringify({ homeSide, jerseys }) },
       );
       setMessage(`已写入个人得分和比分，并存下 ${result.samples} 个号码样本。`);
@@ -353,12 +357,14 @@ export default function FibaReview({
 
 function CornerPicker({
   matchId,
+  apiBase,
   statSheet,
   onSheet,
   onSaved,
   onCancel,
 }: {
   matchId: string;
+  apiBase: string;
   statSheet: MatchStatSheet;
   onSheet: (statSheet: MatchStatSheet) => void;
   onSaved: (match: Match) => void;
@@ -387,7 +393,7 @@ function CornerPicker({
     setBusy(true);
     setError('');
     try {
-      const result = await api<{ statSheet: MatchStatSheet; match: Match }>(`/api/admin/matches/${matchId}/stat-sheet/align`, {
+      const result = await api<{ statSheet: MatchStatSheet; match: Match }>(`${apiBase}/${matchId}/stat-sheet/align`, {
         method: 'POST',
         body: JSON.stringify(withCorners ? { corners: points.flat() } : {}),
       });
@@ -429,7 +435,7 @@ function CornerPicker({
       {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" onClick={() => void align(false)} disabled={busy} className="btn-secondary">
-          {busy ? '正在切格、认号码，约一两分钟…' : '自动切格'}
+          {busy ? '正在切格、认号码…' : '自动切格'}
         </button>
         <button type="button" onClick={() => void align(true)} disabled={busy || points.length !== 4} className="btn-primary">
           按四个角切格（{points.length}/4）

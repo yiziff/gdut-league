@@ -92,7 +92,22 @@ db.exec(`
     created_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_digit_samples_match ON digit_samples(match_id);
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    phone TEXT,
+    name TEXT NOT NULL DEFAULT '',
+    wx_openid TEXT,
+    password_hash TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS user_sessions (
+    token TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at INTEGER NOT NULL
+  );
 `);
+
+ensureUserAuthColumns();
 
 const matchColumns = db.prepare('PRAGMA table_info(matches)').all() as { name: string }[];
 if (!matchColumns.some((column) => column.name === 'lines')) {
@@ -112,11 +127,15 @@ if (!playerColumns.some((column) => column.name === 'class_name')) {
 if (!playerColumns.some((column) => column.name === 'number')) {
   db.exec("ALTER TABLE players ADD COLUMN number TEXT NOT NULL DEFAULT ''");
 }
-for (const column of ['position', 'gender', 'height', 'weight', 'school', 'college', 'avatar']) {
+// phone：名单上登记的手机号；user_id：绑定到的账号；claim_via：phone 按手机号自动绑定、claim 本人认领、join 本人报名
+for (const column of ['position', 'gender', 'height', 'weight', 'school', 'college', 'avatar', 'phone', 'user_id', 'claim_via', 'claimed_at']) {
   if (!playerColumns.some((item) => item.name === column)) {
     db.exec(`ALTER TABLE players ADD COLUMN ${column} TEXT NOT NULL DEFAULT ''`);
   }
 }
+db.exec('CREATE INDEX IF NOT EXISTS idx_players_phone ON players(phone)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_players_user ON players(user_id)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_players_name ON players(name)');
 
 db.exec(`
   CREATE TRIGGER IF NOT EXISTS players_unique_number_insert
@@ -157,6 +176,11 @@ if (!leagueColumns.some((column) => column.name === 'kind')) {
   db.exec("ALTER TABLE leagues ADD COLUMN kind TEXT NOT NULL DEFAULT 'league'");
 }
 
+const teamColumns = db.prepare('PRAGMA table_info(teams)').all() as { name: string }[];
+if (!teamColumns.some((column) => column.name === 'club_id')) {
+  db.exec("ALTER TABLE teams ADD COLUMN club_id TEXT NOT NULL DEFAULT ''");
+}
+
 const sessionColumns = db.prepare('PRAGMA table_info(sessions)').all() as { name: string }[];
 if (!sessionColumns.some((column) => column.name === 'name')) {
   db.exec("ALTER TABLE sessions ADD COLUMN name TEXT NOT NULL DEFAULT ''");
@@ -193,6 +217,7 @@ interface TeamRow {
   name: string;
   short: string;
   color: string;
+  club_id?: string | null;
 }
 
 interface MatchRow {
@@ -241,7 +266,14 @@ function toLeague(row: LeagueRow): League {
 }
 
 function toTeam(row: TeamRow): Team {
-  return { id: row.id, leagueId: row.league_id, name: row.name, short: row.short, color: row.color };
+  return {
+    id: row.id,
+    leagueId: row.league_id,
+    name: row.name,
+    short: row.short,
+    color: row.color,
+    ...(row.club_id ? { clubId: row.club_id } : {}),
+  };
 }
 
 function toMatch(row: MatchRow): Match {
@@ -439,15 +471,197 @@ const accountSql = `
   JOIN leagues ON leagues.id = teams.league_id
 `;
 
-export function findPlayerAccounts(name: string, number: string): PlayerAccount[] {
-  return (db.prepare(`${accountSql} WHERE players.name = ? AND players.number = ? ORDER BY leagues.name, teams.name`).all(name, number) as unknown as AccountRow[]).map(toAccount);
-}
-
 export function getPlayerAccount(id: string): PlayerAccount | undefined {
   const row = db.prepare(`${accountSql} WHERE players.id = ?`).get(id) as unknown as AccountRow | undefined;
   return row && toAccount(row);
 }
 
+export interface User {
+  id: string;
+  phone: string;
+  name: string;
+  hasPassword: boolean;
+}
+
+interface UserRow {
+  id: string;
+  phone: string;
+  name: string;
+  password_hash: string;
+}
+
+const userSelect = `SELECT id, COALESCE(phone, '') AS phone, name, password_hash FROM users`;
+
+function toUser(row: UserRow | undefined): User | undefined {
+  if (!row) return undefined;
+  return { id: row.id, phone: row.phone, name: row.name, hasPassword: row.password_hash !== '' };
+}
+
+/** 旧库的手机号是必填的。改成可空，好让只走微信登录的小程序账号先不填手机号。 */
+function ensureUserAuthColumns(): void {
+  const columns = db.prepare('PRAGMA table_info(users)').all() as { name: string; notnull: number }[];
+  const phone = columns.find((column) => column.name === 'phone');
+  const ready = phone?.notnull === 0 && columns.some((column) => column.name === 'password_hash');
+  if (!ready) {
+    const names = new Set(columns.map((column) => column.name));
+    db.exec('PRAGMA foreign_keys = OFF');
+    db.exec('BEGIN');
+    try {
+      db.exec(`CREATE TABLE users_next (
+        id TEXT PRIMARY KEY,
+        phone TEXT,
+        name TEXT NOT NULL DEFAULT '',
+        wx_openid TEXT,
+        password_hash TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL
+      )`);
+      db.exec(`INSERT INTO users_next (id, phone, name, wx_openid, password_hash, created_at)
+        SELECT id, NULLIF(phone, ''), name,
+          ${names.has('wx_openid') ? "NULLIF(wx_openid, '')" : 'NULL'},
+          ${names.has('password_hash') ? 'password_hash' : "''"},
+          created_at
+        FROM users`);
+      db.exec('DROP TABLE users');
+      db.exec('ALTER TABLE users_next RENAME TO users');
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      db.exec('PRAGMA foreign_keys = ON');
+      throw error;
+    }
+    db.exec('PRAGMA foreign_keys = ON');
+  }
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS users_phone ON users(phone) WHERE phone <> ''`);
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS users_wx ON users(wx_openid) WHERE wx_openid <> ''`);
+  db.exec('DROP TABLE IF EXISTS sms_codes');
+}
+
+export function findUserByPhone(phone: string): User | undefined {
+  if (!phone) return undefined;
+  return toUser(db.prepare(`${userSelect} WHERE phone = ?`).get(phone) as UserRow | undefined);
+}
+
+export function findUserByOpenId(openid: string): User | undefined {
+  if (!openid) return undefined;
+  return toUser(db.prepare(`${userSelect} WHERE wx_openid = ?`).get(openid) as UserRow | undefined);
+}
+
+export function getUser(id: string): User | undefined {
+  return toUser(db.prepare(`${userSelect} WHERE id = ?`).get(id) as UserRow | undefined);
+}
+
+export function insertUser(user: User, extra?: { passwordHash?: string; wxOpenId?: string }): void {
+  db.prepare('INSERT INTO users (id, phone, name, wx_openid, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
+    user.id,
+    user.phone || null,
+    user.name,
+    extra?.wxOpenId || null,
+    extra?.passwordHash ?? '',
+    new Date().toISOString(),
+  );
+}
+
+export function passwordHashOf(id: string): string {
+  const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(id) as { password_hash: string } | undefined;
+  return row?.password_hash ?? '';
+}
+
+export function setPassword(id: string, passwordHash: string): void {
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, id);
+}
+
+export function attachOpenId(id: string, openid: string): void {
+  db.prepare('UPDATE users SET wx_openid = ? WHERE id = ?').run(openid, id);
+}
+
+export function renameUser(id: string, name: string): void {
+  db.prepare('UPDATE users SET name = ? WHERE id = ?').run(name, id);
+}
+
+/** 名单上登记了这个手机号、还没绑定账号的条目，全部绑到这个账号。返回绑定数量。 */
+export function bindByPhone(userId: string, phone: string): number {
+  return Number(
+    db
+      .prepare("UPDATE players SET user_id = ?, claim_via = 'phone', claimed_at = ? WHERE phone = ? AND user_id = ''")
+      .run(userId, new Date().toISOString(), phone).changes,
+  );
+}
+
+export function accountsOfUser(userId: string): PlayerAccount[] {
+  return (
+    db.prepare(`${accountSql} WHERE players.user_id = ? ORDER BY leagues.created_at DESC, teams.name`).all(userId) as unknown as AccountRow[]
+  ).map(toAccount);
+}
+
+export type ClaimVia = 'phone' | 'claim' | 'join';
+
+export interface PlayerOwner {
+  phone: string;
+  userId: string;
+  via: ClaimVia | '';
+  claimedAt: string;
+}
+
+export function ownerOf(playerId: string): PlayerOwner | undefined {
+  const row = db.prepare('SELECT phone, user_id, claim_via, claimed_at FROM players WHERE id = ?').get(playerId) as
+    | { phone: string; user_id: string; claim_via: string; claimed_at: string }
+    | undefined;
+  if (!row) return undefined;
+  const via = row.claim_via === 'phone' || row.claim_via === 'claim' || row.claim_via === 'join' ? row.claim_via : '';
+  return { phone: row.phone, userId: row.user_id, via, claimedAt: row.claimed_at };
+}
+
+export function setOwner(playerId: string, owner: Omit<PlayerOwner, 'claimedAt'>): void {
+  db.prepare('UPDATE players SET phone = ?, user_id = ?, claim_via = ?, claimed_at = ? WHERE id = ?').run(
+    owner.phone,
+    owner.userId,
+    owner.userId ? owner.via : '',
+    owner.userId ? new Date().toISOString() : '',
+    playerId,
+  );
+}
+
+export function claimCount(userId: string): number {
+  return count("SELECT COUNT(*) AS n FROM players WHERE user_id = ? AND claim_via = 'claim'", userId);
+}
+
+export interface ClaimCandidate extends PlayerAccount {
+  owner: PlayerOwner;
+  lastMatch?: { time: string; venue: string };
+}
+
+export function claimCandidates(name: string): ClaimCandidate[] {
+  const rows = db.prepare(`${accountSql} WHERE players.name = ? ORDER BY leagues.created_at DESC, teams.name`).all(name) as unknown as AccountRow[];
+  const last = db.prepare('SELECT time, venue FROM matches WHERE home = ? OR away = ? ORDER BY time DESC LIMIT 1');
+  return rows.map((row) => {
+    const match = last.get(row.team_id, row.team_id) as { time: string; venue: string } | undefined;
+    return { ...toAccount(row), owner: ownerOf(row.id)!, ...(match ? { lastMatch: match } : {}) };
+  });
+}
+
+export interface RosterOwner extends PlayerOwner {
+  playerId: string;
+  userPhone: string;
+}
+
+/** 管理端看名单绑定情况用，手机号不进公开接口。 */
+export function rosterOwners(leagueId: string): RosterOwner[] {
+  const rows = db
+    .prepare(
+      `SELECT players.id, players.phone, players.user_id, players.claim_via, players.claimed_at, users.phone AS user_phone
+       FROM players JOIN teams ON teams.id = players.team_id LEFT JOIN users ON users.id = players.user_id
+       WHERE teams.league_id = ?`,
+    )
+    .all(leagueId) as { id: string; phone: string; user_id: string; claim_via: string; claimed_at: string; user_phone: string | null }[];
+  return rows.map((row) => ({
+    playerId: row.id,
+    phone: row.phone,
+    userId: row.user_id,
+    via: row.claim_via === 'phone' || row.claim_via === 'claim' || row.claim_via === 'join' ? row.claim_via : '',
+    claimedAt: row.claimed_at,
+    userPhone: row.user_phone ?? '',
+  }));
+}
 export function deletePlayer(id: string): boolean {
   return db.prepare('DELETE FROM players WHERE id = ?').run(id).changes > 0;
 }
@@ -504,12 +718,13 @@ export function deleteLeague(id: string): void {
 }
 
 export function insertTeam(team: Team): void {
-  db.prepare('INSERT INTO teams (id, league_id, name, short, color) VALUES (?, ?, ?, ?, ?)').run(
+  db.prepare('INSERT INTO teams (id, league_id, name, short, color, club_id) VALUES (?, ?, ?, ?, ?, ?)').run(
     team.id,
     team.leagueId,
     team.name,
     team.short,
     team.color,
+    team.clubId ?? '',
   );
 }
 

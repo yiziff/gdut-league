@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { autoReadJerseys, guessJersey, tallyMarks, UNREAD_JERSEY, type ScoreMark } from './fibaScore';
+import {
+  assignModelAnswers,
+  autoReadJerseys,
+  guessJersey,
+  NO_NUMBER,
+  tallyMarks,
+  UNREAD_JERSEY,
+  type ScoreMark,
+} from './fibaScore';
 
 /** 沙步社区（A 队）54 : 41 中央公园（B 队）那张记录表，按原图逐格整理。 */
 const sampleA: [number, string][] = [
@@ -107,6 +115,12 @@ describe('autoReadJerseys', () => {
     const result = autoReadJerseys(cells, home, away);
     expect(result.homeSide).toBe('B');
     expect(result.jerseys).toEqual({ 'A:2': '93', 'A:4': '35', 'B:2': '24' });
+  });
+
+  it('maps model answers onto rosters and picks the sheet side', () => {
+    const result = assignModelAnswers({ 'A:2': '93', 'A:4': '35', 'A:5': NO_NUMBER, 'B:2': '24', 'B:3': null, 'B:6': '99' }, home, away);
+    expect(result.homeSide).toBe('B');
+    expect(result.jerseys).toEqual({ 'A:2': '93', 'A:4': '35', 'A:5': '', 'B:2': '24', 'B:3': UNREAD_JERSEY, 'B:6': UNREAD_JERSEY });
   });
 
   it('keeps unread points out of player totals but in the team total', () => {

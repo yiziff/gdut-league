@@ -135,7 +135,83 @@ export interface Team {
   name: string;
   short: string;
   color: string;
+  /** 约战生成的比赛里，指回发起或迎战的球队 */
+  clubId?: string;
   players?: Player[];
+}
+
+/** 不依附联赛、长期存在的球队，用来约战。 */
+export interface Club {
+  id: string;
+  name: string;
+  short: string;
+  color: string;
+  /** 队伍头像，空字符串表示还没上传 */
+  logo: string;
+  sport: Sport;
+  intro: string;
+  homeVenue: string;
+  createdAt: string;
+}
+
+export type ClubBrief = Pick<Club, 'id' | 'name' | 'short' | 'color' | 'logo'>;
+
+export type ClubRole = 'owner' | 'manager';
+
+export interface ClubManager {
+  userId: string;
+  name: string;
+  /** 打码；约战成交后对方负责人能看到完整号码 */
+  phone: string;
+  role: ClubRole;
+}
+
+export interface ClubPlayer {
+  id: string;
+  name: string;
+  number: string;
+  hasPhone: boolean;
+  /** 只有本队负责人能拿到 */
+  phone?: string;
+}
+
+export type ChallengeFormat = 'full' | 'half';
+export type ChallengeLevel = 'casual' | 'medium' | 'strong';
+export type ChallengeStatus = 'open' | 'matched' | 'cancelled' | 'expired';
+export type ResponseStatus = 'pending' | 'accepted' | 'declined' | 'withdrawn';
+
+export const CHALLENGE_FORMATS: { id: ChallengeFormat; label: string }[] = [
+  { id: 'full', label: '全场 5v5' },
+  { id: 'half', label: '半场 3v3' },
+];
+
+export const CHALLENGE_LEVELS: { id: ChallengeLevel; label: string }[] = [
+  { id: 'casual', label: '休闲' },
+  { id: 'medium', label: '中等' },
+  { id: 'strong', label: '强' },
+];
+
+export interface Challenge {
+  id: string;
+  club: ClubBrief;
+  time: string;
+  venue: string;
+  format: ChallengeFormat;
+  level: ChallengeLevel;
+  note: string;
+  status: ChallengeStatus;
+  responseCount: number;
+  createdAt: string;
+  opponent?: ClubBrief;
+  leagueId?: string;
+}
+
+export interface ChallengeResponse {
+  id: string;
+  club: ClubBrief;
+  message: string;
+  status: ResponseStatus;
+  createdAt: string;
 }
 
 export interface Score {

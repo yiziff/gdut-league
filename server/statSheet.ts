@@ -224,7 +224,7 @@ function semanticEngineName(): string {
   return process.env.FORM_VLM_MODEL?.trim() || 'OpenAI-compatible Vision Model';
 }
 
-async function callSemanticVision(prompt: string, images: string[]): Promise<string> {
+export async function callSemanticVision(prompt: string, images: string[]): Promise<string> {
   const endpoint = semanticEndpoint();
   if (!endpoint) throw new Error('尚未配置 FORM_VLM_API_URL');
   const model = process.env.FORM_VLM_MODEL?.trim();
@@ -240,6 +240,8 @@ async function callSemanticVision(prompt: string, images: string[]): Promise<str
     body: JSON.stringify({
       model,
       temperature: 0,
+      // 百炼的千问默认先思考，读表格既慢又多耗 token；其他接口不认这个参数，不发
+      ...(endpoint.includes('aliyuncs.com') ? { enable_thinking: false } : {}),
       messages: [
         {
           role: 'user',
@@ -271,7 +273,7 @@ async function callSemanticVision(prompt: string, images: string[]): Promise<str
   throw new Error('表单视觉模型没有返回内容');
 }
 
-function jsonObject(text: string): Record<string, unknown> {
+export function jsonObject(text: string): Record<string, unknown> {
   const unfenced = text.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
   const start = unfenced.indexOf('{');
   const end = unfenced.lastIndexOf('}');

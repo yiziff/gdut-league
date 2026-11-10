@@ -103,6 +103,33 @@ export function autoReadJerseys(
   return { homeSide: best.homeSide, jerseys: best.jerseys };
 }
 
+/** 看图大模型给每格的答案：号码、NO_NUMBER（格里没写号码）或 null（看不清）。 */
+export const NO_NUMBER = '空';
+
+/** 把大模型的答案对上两队名单：按哪种对应方式落在名单里的格子多来判断表上 A 队是主队还是客队。 */
+export function assignModelAnswers(
+  answers: Record<string, string | null>,
+  home: string[],
+  away: string[],
+): { homeSide: SheetSide; jerseys: Record<string, string> } {
+  const homeSet = new Set(home.map(normalizeJersey));
+  const awaySet = new Set(away.map(normalizeJersey));
+  const fit = (homeSide: SheetSide) =>
+    Object.entries(answers).filter(([key, answer]) => {
+      if (!answer) return false;
+      const roster = key.startsWith(homeSide) ? homeSet : awaySet;
+      return roster.has(normalizeJersey(answer));
+    }).length;
+  const homeSide: SheetSide = fit('B') > fit('A') ? 'B' : 'A';
+  const jerseys: Record<string, string> = {};
+  for (const [key, answer] of Object.entries(answers)) {
+    const roster = key.startsWith(homeSide) ? homeSet : awaySet;
+    const jersey = answer ? normalizeJersey(answer) : '';
+    jerseys[key] = answer === NO_NUMBER ? '' : roster.has(jersey) ? jersey : UNREAD_JERSEY;
+  }
+  return { homeSide, jerseys };
+}
+
 /** 按 FIBA 累积分计算个人得分：本次得分 = 本格累计分 - 本队上一个写了号码的格子的累计分。 */
 export function tallyMarks(marks: ScoreMark[], rosters: Record<SheetSide, string[]>): FibaTally {
   const points: Record<string, number> = {};

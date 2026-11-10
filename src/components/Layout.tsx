@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { isSport } from '../sports';
 import { DataGate } from '../data/store';
 import BrandMark from './BrandMark';
+import ChallengeAlert from './ChallengeAlert';
 
 const navClass = (active: boolean) =>
   `relative shrink-0 px-1 py-5 text-sm font-medium transition after:absolute after:inset-x-1 after:bottom-0 after:h-0.5 after:origin-center after:bg-[#e08a3c] after:transition-transform ${
@@ -14,6 +15,7 @@ const playerNavClass = (active: boolean) => `nav-player ${active ? 'nav-player-o
 const PLAYER_LINKS = [
   { to: '/player/matches', label: '比赛' },
   { to: '/player/career', label: '生涯' },
+  { to: '/player/clubs', label: '球队' },
   { to: '/player/me', label: '我的' },
 ];
 
@@ -21,8 +23,9 @@ export default function Layout() {
   const { pathname } = useLocation();
   useEffect(() => window.scrollTo(0, 0), [pathname]);
   const segment = pathname.split('/')[1];
-  const sportTheme = isSport(segment) ? segment : undefined;
-  const eventArea = pathname === '/events' || !!sportTheme;
+  const hallArea = segment === 'hall' || segment === 'clubs';
+  const sportTheme = isSport(segment) ? segment : hallArea ? 'basketball' : undefined;
+  const eventArea = pathname === '/events' || isSport(segment);
   const playerArea = segment === 'player';
 
   return (
@@ -48,6 +51,9 @@ export default function Layout() {
                 </NavLink>
                 <NavLink to="/teams" className={({ isActive }) => navClass(isActive)}>
                   队伍
+                </NavLink>
+                <NavLink to="/hall" className={() => navClass(hallArea)}>
+                  约球
                 </NavLink>
                 <NavLink to="/player" className={() => navClass(playerArea)}>
                   球员
@@ -91,6 +97,9 @@ export default function Layout() {
             <NavLink to="/teams" className={({ isActive }) => navClass(isActive)}>
               队伍
             </NavLink>
+            <NavLink to="/hall" className={() => navClass(hallArea)}>
+              约球
+            </NavLink>
             <NavLink to="/player" className={() => navClass(playerArea)}>
               球员
             </NavLink>
@@ -103,6 +112,7 @@ export default function Layout() {
           <Outlet />
         </DataGate>
       </main>
+      <ChallengeAlert />
       <footer className="border-t border-white/10 bg-[#8f3a12] text-orange-100">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">

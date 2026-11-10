@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 
 const dir = resolve('data/uploads/leagues');
 const avatarDir = resolve('data/uploads/players');
+const clubDir = resolve('data/uploads/clubs');
 
 export function clearLeagueLogo(id: string): void {
   if (!/^[a-zA-Z0-9-]+$/.test(id)) return;
@@ -43,4 +44,24 @@ export function savePlayerAvatar(id: string, dataUrl: string): string {
   clearPlayerAvatar(id);
   writeFileSync(resolve(avatarDir, `${id}.jpg`), bytes);
   return `/uploads/players/${id}.jpg?v=${Date.now()}`;
+}
+
+export function clearClubLogo(id: string): void {
+  if (!/^[a-zA-Z0-9-]+$/.test(id)) return;
+  for (const ext of ['jpg', 'png', 'webp']) {
+    const file = resolve(clubDir, `${id}.${ext}`);
+    if (existsSync(file)) rmSync(file);
+  }
+}
+
+export function saveClubLogo(id: string, dataUrl: string): string {
+  if (!/^[a-zA-Z0-9-]+$/.test(id)) throw new Error('头像无法保存');
+  const match = /^data:image\/(?:jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=\s]+)$/.exec(dataUrl);
+  if (!match) throw new Error('头像需要是 jpg、png 或 webp');
+  const bytes = Buffer.from(match[1], 'base64');
+  if (bytes.length < 32 || bytes.length > 1_200_000) throw new Error('头像大小不合适');
+  mkdirSync(clubDir, { recursive: true });
+  clearClubLogo(id);
+  writeFileSync(resolve(clubDir, `${id}.jpg`), bytes);
+  return `/uploads/clubs/${id}.jpg?v=${Date.now()}`;
 }

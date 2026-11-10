@@ -188,6 +188,199 @@
     @apply text-[10px] font-bold tracking-[0.14em] text-slate-500 uppercase;
   }
 
+  .dossier {
+    @apply relative overflow-hidden rounded-xl border border-[#f3d7c2] bg-white shadow-[0_22px_44px_-30px_rgb(196_92_36_/_45%)];
+  }
+
+  .dossier-file {
+    @apply relative overflow-hidden px-5 py-6 sm:px-7 sm:py-7;
+    background:
+      linear-gradient(115deg, transparent 18%, rgb(255 255 255 / 55%) 42%, transparent 62%),
+      linear-gradient(165deg, #fff 0%, #fff8f2 58%, #ffe8d4 100%);
+    background-size: 220% 100%, auto;
+    animation: dossier-sheen 7s ease-in-out infinite;
+  }
+
+  .dossier-watermark {
+    position: absolute;
+    right: 0.2rem;
+    bottom: -0.45em;
+    color: rgb(232 138 60 / 16%);
+    font-family: 'Sport Display', var(--font-sans);
+    font-size: clamp(6.5rem, 16vw, 9rem);
+    line-height: 0.8;
+    letter-spacing: -0.04em;
+    pointer-events: none;
+  }
+
+  .dossier-identity {
+    @apply relative z-10 flex items-center gap-5;
+    animation: dossier-rise 0.55s ease both;
+  }
+
+  .dossier-photo,
+  .dossier-badge {
+    @apply h-20 w-20 shrink-0 rounded-2xl object-cover;
+    box-shadow: 0 12px 24px -16px rgb(164 82 28 / 80%);
+  }
+
+  .dossier-badge {
+    @apply grid place-items-center text-3xl font-bold text-white;
+    background: linear-gradient(160deg, #e08a3c, #a4521c);
+  }
+
+  .dossier-name {
+    font-family: 'Sport Poster', 'Sport Display', var(--font-sans);
+    font-size: clamp(2.6rem, 6vw, 3.6rem);
+    font-weight: 400;
+    line-height: 0.95;
+    letter-spacing: 0.04em;
+    color: #1a2744;
+  }
+
+  .dossier-record {
+    @apply grid grid-cols-2 sm:grid-cols-5;
+  }
+
+  .dossier-record-cell {
+    @apply relative bg-white px-3 py-5 text-center;
+    animation: dossier-rise 0.5s ease both;
+  }
+
+  .dossier-record-cell + .dossier-record-cell {
+    box-shadow: inset 1px 0 0 #f3e4d6;
+  }
+
+  .dossier-figure {
+    @apply text-2xl font-bold tabular-nums text-navy-950;
+  }
+
+  .dossier-rate {
+    @apply absolute right-4 bottom-3 left-4 h-0.5 origin-left rounded-full bg-[#e08a3c];
+    animation: dossier-rate 0.8s ease 0.35s both;
+  }
+
+  .dossier-card {
+    @apply relative rounded-[10px] border border-slate-200/90 bg-white px-4 py-4;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 90%), var(--shadow-panel);
+    animation: dossier-rise 0.5s ease both;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .dossier-card::before,
+  .dossier-card::after {
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    content: '';
+    border-color: #e7b48a;
+    opacity: 0.9;
+  }
+
+  .dossier-card::before {
+    top: 7px;
+    left: 7px;
+    border-top: 1px solid;
+    border-left: 1px solid;
+  }
+
+  .dossier-card::after {
+    right: 7px;
+    bottom: 7px;
+    border-right: 1px solid;
+    border-bottom: 1px solid;
+  }
+
+  .dossier-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 16px 28px -22px rgb(196 92 36 / 70%);
+  }
+
+  .dossier-team {
+    @apply flex w-full items-center gap-3 rounded-xl border border-[#f3d7c2] bg-white px-4 py-3 text-left transition;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 90%), var(--shadow-panel);
+  }
+
+  .dossier-team:hover {
+    transform: translateY(-2px);
+    border-color: #e7b48a;
+  }
+
+  .dossier-team.is-current {
+    border-color: #e08a3c;
+    background: linear-gradient(180deg, #fff 0%, #fff8f2 100%);
+  }
+
+  .dossier-chip {
+    @apply grid h-7 w-7 place-items-center rounded-md text-xs font-bold;
+  }
+
+  .dossier-chip.is-w {
+    background: #e08a3c;
+    color: #fff;
+  }
+
+  .dossier-chip.is-l {
+    background: #f1f5f9;
+    color: #64748b;
+  }
+
+  .dossier-chip.is-d {
+    background: #fff1e4;
+    color: #a4521c;
+  }
+
+  .dossier-log {
+    @apply overflow-hidden rounded-xl border border-[#f3d7c2] bg-white;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 90%), var(--shadow-panel);
+  }
+
+  .dossier-log a + a {
+    box-shadow: inset 0 1px 0 #f3e4d6;
+  }
+
+  .dossier-log a {
+    @apply flex items-center gap-3 px-4 py-3 transition hover:bg-[#fff8f2];
+  }
+
+  @keyframes dossier-rise {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes dossier-sheen {
+    0%,
+    55% {
+      background-position: 130% 0, 0 0;
+    }
+    100% {
+      background-position: -40% 0, 0 0;
+    }
+  }
+
+  @keyframes dossier-rate {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dossier-file,
+    .dossier-identity,
+    .dossier-record-cell,
+    .dossier-card,
+    .dossier-rate {
+      animation: none;
+    }
+  }
+
   .page-masthead {
     @apply relative overflow-hidden rounded-xl px-5 py-7 text-white shadow-panel sm:px-8 sm:py-9 lg:px-10;
     border: 1px solid #c56a34;
@@ -295,6 +488,41 @@
     background: linear-gradient(100deg, #c45c22 0%, rgb(196 92 34 / 62%) 48%, rgb(176 78 28 / 28%) 100%);
   }
 
+  .hero-panel > .hero-cameo {
+    position: absolute;
+    z-index: 0;
+    top: 50%;
+    right: 3%;
+    height: 108%;
+    width: min(28%, 13.5rem);
+    transform: translateY(-50%);
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .hero-cameo img {
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
+    object-position: 58% 42%;
+    filter: saturate(0.8) contrast(1.04);
+    -webkit-mask-image:
+      linear-gradient(90deg, transparent 0%, #000 26%, #000 74%, transparent 100%),
+      linear-gradient(180deg, transparent 0%, #000 16%, #000 80%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      linear-gradient(90deg, transparent 0%, #000 26%, #000 74%, transparent 100%),
+      linear-gradient(180deg, transparent 0%, #000 16%, #000 80%, transparent 100%);
+    mask-composite: intersect;
+  }
+
+  .hero-cameo::after {
+    position: absolute;
+    inset: 0;
+    content: '';
+    background: linear-gradient(90deg, #c45c22 0%, rgb(196 92 34 / 42%) 38%, rgb(196 92 34 / 8%) 100%);
+  }
+
   /* 首页「正在进行」：比亮橙收一点，比深橘亮一点，斜向渐变能看出来 */
   .hero-panel.hero-live {
     border-color: #d4844e;
@@ -370,6 +598,27 @@
       transform 0.25s ease,
       border-color 0.25s ease,
       box-shadow 0.25s ease;
+  }
+
+  /* 同一项目的卡片按位置轮换深浅：四种一轮，三列网格里左右、上下相邻的卡片都不一样 */
+  .league-card:nth-child(4n + 2) {
+    border-color: var(--tone-300);
+    background:
+      radial-gradient(120% 85% at 100% 0%, var(--tone-200) 0%, transparent 62%),
+      linear-gradient(165deg, var(--tone-100) 0%, #fff 78%);
+  }
+
+  .league-card:nth-child(4n + 3) {
+    border-color: color-mix(in srgb, var(--tone-200) 65%, white);
+    background:
+      radial-gradient(110% 80% at 100% 0%, color-mix(in srgb, var(--tone-100) 55%, white) 0%, transparent 55%),
+      linear-gradient(165deg, color-mix(in srgb, var(--tone-50) 60%, white) 0%, #fff 65%);
+  }
+
+  .league-card:nth-child(4n + 4) {
+    background:
+      radial-gradient(120% 90% at 0% 100%, var(--tone-100) 0%, transparent 60%),
+      linear-gradient(200deg, var(--tone-50) 0%, #fff 70%);
   }
 
   .league-card:hover {
@@ -550,6 +799,46 @@
     @apply relative z-10;
   }
 
+  .hall-masthead::after {
+    z-index: 1;
+  }
+
+  .hall-masthead-figure {
+    @apply pointer-events-none absolute right-[1%] bottom-0 z-[2] h-[34%] w-[min(16.8%,11.2rem)];
+  }
+
+  .hall-masthead-figure img {
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
+    object-position: 50% 38%;
+    filter: saturate(0.82) contrast(1.04);
+    -webkit-mask-image:
+      linear-gradient(90deg, transparent 0%, #000 18%, #000 78%, transparent 100%),
+      linear-gradient(180deg, transparent 0%, #000 12%, #000 72%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-image:
+      linear-gradient(90deg, transparent 0%, #000 18%, #000 78%, transparent 100%),
+      linear-gradient(180deg, transparent 0%, #000 12%, #000 72%, transparent 100%);
+    mask-composite: intersect;
+  }
+
+  .hall-masthead-figure::after {
+    position: absolute;
+    inset: 0;
+    content: '';
+    background:
+      linear-gradient(90deg, #fff6ee 0%, rgb(255 246 238 / 28%) 22%, transparent 46%),
+      linear-gradient(180deg, transparent 42%, rgb(255 246 238 / 72%) 100%);
+  }
+
+  @media (max-width: 640px) {
+    .hall-masthead-figure,
+    .hero-cameo {
+      display: none;
+    }
+  }
+
   .sport-masthead .eyebrow {
     color: var(--tone-700);
   }
@@ -605,6 +894,35 @@
     font-size: 1.125rem;
     font-weight: 800;
     letter-spacing: -0.02em;
+  }
+
+  .level-filter {
+    @apply inline-flex flex-wrap gap-1 rounded-xl border bg-white p-1;
+    border-color: var(--tone-200);
+  }
+
+  .level-filter button {
+    @apply rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors;
+    color: var(--tone-700);
+  }
+
+  .level-filter button:hover {
+    background: var(--tone-50);
+  }
+
+  .level-filter button span {
+    @apply ml-1.5 text-xs tabular-nums;
+    color: var(--tone-300);
+  }
+
+  .level-filter button.is-active {
+    background: var(--tone-500);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .level-filter button.is-active span {
+    color: rgb(255 255 255 / 75%);
   }
 
   .league-level-mark {

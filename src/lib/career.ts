@@ -1,4 +1,4 @@
-import type { Match } from '../types';
+import type { Match, Sport, Stage } from '../types';
 
 export interface CareerSummary {
   played: number;
@@ -70,4 +70,50 @@ export function summarizeCareer(teamId: string, playerId: string, matches: Match
     assists,
     recorded,
   };
+}
+
+export interface CareerGame {
+  id: string;
+  leagueId?: string;
+  sport: Sport;
+  time: string;
+  venue: string;
+  stage: Stage;
+  result: 'W' | 'D' | 'L';
+  own: number | null;
+  opp: number | null;
+  opponentId: string | null;
+  forfeit: boolean;
+  points: number | null;
+  rebounds: number | null;
+  assists: number | null;
+}
+
+/** 本队已结束的比赛，新的在前。没有个人数据时得分三项为 null。 */
+export function careerGames(teamId: string, playerId: string, matches: Match[]): CareerGame[] {
+  const games: CareerGame[] = [];
+  for (const match of matches) {
+    const result = outcome(match, teamId);
+    if (!result) continue;
+    const side = match.home === teamId ? 'home' : 'away';
+    const other = side === 'home' ? 'away' : 'home';
+    const line = match.lines?.find((item) => item.playerId === playerId);
+    games.push({
+      id: match.id,
+      leagueId: match.leagueId,
+      sport: match.sport,
+      time: match.time,
+      venue: match.venue,
+      stage: match.stage,
+      result,
+      own: match.score ? match.score[side] : null,
+      opp: match.score ? match.score[other] : null,
+      opponentId: match[other],
+      forfeit: Boolean(match.forfeit),
+      points: line ? line.points : null,
+      rebounds: line ? (line.rebounds ?? null) : null,
+      assists: line ? (line.assists ?? null) : null,
+    });
+  }
+  return games.sort((a, b) => b.time.localeCompare(a.time) || b.id.localeCompare(a.id));
 }

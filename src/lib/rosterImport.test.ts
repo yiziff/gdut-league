@@ -39,6 +39,23 @@ describe('parseRoster', () => {
     expect(() => parseRoster('计算机学院\n一班,张三,10\n一班,李四,10')).toThrow(/号码 10/);
   });
 
+  it('reads an optional phone column in either layout', () => {
+    const columns = parseRoster('队伍,班级,姓名,号码,手机号\n计算机学院,一班,张三,10,138 0013 8000\n计算机学院,一班,李四,11');
+    expect(columns[0].players).toEqual([
+      { className: '一班', name: '张三', number: '10', phone: '13800138000' },
+      { className: '一班', name: '李四', number: '11' },
+    ]);
+    const grouped = parseRoster('计算机学院,计算机\n一班,张三,10,+8613900139000\n一班,李四,11');
+    expect(grouped[0].short).toBe('计算机');
+    expect(grouped[0].players[0].phone).toBe('13900139000');
+    expect(grouped[0].players[1].phone).toBeUndefined();
+  });
+
+  it('rejects a malformed or repeated phone', () => {
+    expect(() => parseRoster('计算机学院\n一班,张三,10,1380013800')).toThrow(/手机号/);
+    expect(() => parseRoster('计算机学院\n一班,张三,10,13800138000\n一班,李四,11,13800138000')).toThrow(/手机号/);
+  });
+
   it('asks for a team name before player rows', () => {
     expect(() => parseRoster('一班,张三,10')).toThrow(/队伍名称/);
   });

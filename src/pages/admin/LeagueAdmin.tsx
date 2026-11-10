@@ -65,11 +65,30 @@ interface PlayerDraft {
   className: string;
   name: string;
   number: string;
+  phone: string;
 }
 
 function blankPlayerDraft(): PlayerDraft {
-  return { className: '', name: '', number: '' };
+  return { className: '', name: '', number: '', phone: '' };
 }
+
+interface RosterOwner {
+  playerId: string;
+  /** 已打码 */
+  phone: string;
+  hasPhone: boolean;
+  bound: boolean;
+  via: '' | 'phone' | 'claim' | 'join';
+  claimedAt: string;
+  userPhone: string;
+}
+
+const VIA_LABEL: Record<RosterOwner['via'], string> = {
+  '': '',
+  phone: '手机号自动绑定',
+  claim: '本人认领',
+  join: '本人报名',
+};
 
 function todayAt(hour: string): string {
   const now = new Date();
@@ -161,10 +180,10 @@ function pair(home: string, away: string): { home: number; away: number } | null
 const inputClass = 'field mt-1.5 w-full';
 
 const ROSTER_PLACEHOLDER = `计算机学院,计算机
-软件工程1班,张三,10
-软件工程1班,李四,11
+软件工程1班,张三,10,13800138000
+软件工程1班,李四,11,13900139000
 
-或四列：队伍,班级,姓名,号码`;
+或五列：队伍,班级,姓名,号码,手机号`;
 
 function bytesToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -177,7 +196,8 @@ function bytesToBase64(buffer: ArrayBuffer): string {
 }
 
 function downloadRosterTemplate(): void {
-  const csv = '\uFEFF队伍,班级,姓名,号码\n计算机学院,软件工程1班,张三,10\n计算机学院,软件工程1班,李四,11\n机电工程学院,机械1班,王五,7\n';
+  const csv =
+    '\uFEFF队伍,班级,姓名,号码,手机号\n计算机学院,软件工程1班,张三,10,13800138000\n计算机学院,软件工程1班,李四,11,13900139000\n机电工程学院,机械1班,王五,7,\n';
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const link = document.createElement('a');
   link.href = url;
@@ -220,6 +240,7 @@ function LeagueAdminBody() {
   const [importing, setImporting] = useState(false);
   const [form, setForm] = useState<MatchForm>(blankMatch);
   const [selected, setSelected] = useState<string[]>([]);
+  const [owners, setOwners] = useState<Record<string, RosterOwner>>({});
   const fittedSlots = fitBracketSize(picked.length);
 
   useEffect(() => {
@@ -233,6 +254,8 @@ function LeagueAdminBody() {
       setMissing(false);
       const only = next.league.kind === 'single' ? next.matches[0] : undefined;
       if (only) setForm((current) => (current.id ? current : toForm(only)));
+      const ownerList = await api<RosterOwner[]>(`/api/admin/leagues/${leagueId}/owners`).catch(() => []);
+      setOwners(Object.fromEntries(ownerList.map((owner) => [owner.playerId, owner])));
       await reload();
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) setMissing(true);
@@ -317,13 +340,19 @@ function LeagueAdminBody() {
     setError('');
     setImporting(true);
     try {
-      const result = await api<{ teamsCreated: number; playersCreated: number }>(`/api/admin/leagues/${league.id}/roster`, {
-        method: 'POST',
-        body: JSON.stringify(body),
-      });
+      const result = await api<{ teamsCreated: number; playersCreated: number; withoutPhone: number; boundNow: number }>(
+        `/api/admin/leagues/${league.id}/roster`,
+        { method: 'POST', body: JSON.stringify(body) },
+      );
       await refresh();
       setRosterText('');
-      setNotice(`已导入 ${result.playersCreated} 名队员，新建 ${result.teamsCreated} 支队伍。同名队伍会把新队员加进原队伍。`);
+      setNotice(
+        [
+          `已导入 ${result.playersCreated} 名队员，新建 ${result.teamsCreated} 支队伍。同名队伍会把新队员加进原队伍。`,
+          result.boundNow ? `其中 ${result.boundNow} 人已注册，直接绑定到了他们的账号。` : '',
+          result.withoutPhone ? `${result.withoutPhone} 人没填手机号，他们登录后要按姓名自己认领。` : '',
+        ].join(''),
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : '导入失败');
     } finally {
@@ -705,7 +734,10 @@ function LeagueAdminBody() {
         <div className="surface mb-4 p-4">
           <h3 className="mb-1 text-sm font-semibold text-navy-950">一次导入</h3>
           <p className="mb-3 text-sm text-slate-500">
-            从 Word 或 Excel 复制表格后粘贴。四列依次是队伍、班级、姓名、号码。也可以先写一行队伍名，下面每行写班级、姓名、号码。上传 .docx 会直接导入，.csv 会先放进文本框。
+            从 Word 或 Excel 复制表格后粘贴。列依次是队伍、班级、姓名、号码、手机号。也可以先写一行队伍名，下面每行写班级、姓名、号码、手机号。上传 .docx 会直接导入，.csv 会先放进文本框。
+            <span className="mt-1 block">
+              手机号请尽量填上：球员用这个手机号登录就自动绑定到自己的名单，重名、一人多队都不会认错。实在不想填的可以空着，他们登录后按姓名自己认领。
+            </span>
           </p>
           <textarea
             value={rosterText}
@@ -838,12 +870,14 @@ function LeagueAdminBody() {
                         号码 {duplicateNumbers.join('、')} 重复，请删除冲突成员；之后同队号码将不能重复。
                       </p>
                     )}
-                    <table className="w-full min-w-lg text-sm">
+                    <table className="w-full min-w-2xl text-sm">
                       <thead className="bg-slate-50 text-left text-xs text-slate-500">
                         <tr>
                           <th className="px-4 py-2 font-medium">班级</th>
                           <th className="px-4 py-2 font-medium">姓名</th>
                           <th className="px-4 py-2 font-medium">号码</th>
+                          <th className="px-4 py-2 font-medium">手机号</th>
+                          <th className="px-4 py-2 font-medium">账号</th>
                           <th className="px-4 py-2 text-right font-medium">操作</th>
                         </tr>
                       </thead>
@@ -858,6 +892,47 @@ function LeagueAdminBody() {
                             <td className={`px-4 py-2 tabular-nums ${numberCounts[player.number] > 1 ? 'font-semibold text-red-700' : ''}`}>
                               {player.number || '—'}
                               {numberCounts[player.number] > 1 && <span className="ml-2 text-xs font-normal">重复</span>}
+                            </td>
+                            <td className="px-4 py-2 whitespace-nowrap">
+                              <span className={owners[player.id]?.hasPhone ? 'tabular-nums' : 'text-slate-400'}>
+                                {owners[player.id]?.hasPhone ? owners[player.id].phone : '未填'}
+                              </span>
+                              <button
+                                type="button"
+                                className="ml-2 text-xs text-gdut-600"
+                                onClick={() => {
+                                  const value = window.prompt(`「${player.name}」的手机号（留空表示清除）`, '');
+                                  if (value === null) return;
+                                  void run(() =>
+                                    api(`/api/admin/players/${player.id}/phone`, { method: 'PATCH', body: JSON.stringify({ phone: value }) }),
+                                  );
+                                }}
+                              >
+                                {owners[player.id]?.hasPhone ? '修改' : '填写'}
+                              </button>
+                            </td>
+                            <td className="px-4 py-2 whitespace-nowrap">
+                              {owners[player.id]?.bound ? (
+                                <>
+                                  <span className="text-emerald-700">已绑定</span>
+                                  <span className="ml-1 text-xs text-slate-400">
+                                    {VIA_LABEL[owners[player.id].via]}
+                                    {owners[player.id].userPhone ? ` · ${owners[player.id].userPhone}` : ''}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="ml-2 text-xs text-red-600"
+                                    onClick={() => {
+                                      if (!window.confirm(`解绑「${player.name}」？名单上的手机号也会清除，之后可以重新填写或由本人认领。`)) return;
+                                      void run(() => api(`/api/admin/players/${player.id}/unbind`, { method: 'POST' }));
+                                    }}
+                                  >
+                                    解绑
+                                  </button>
+                                </>
+                              ) : (
+                                <span className="text-slate-400">未绑定</span>
+                              )}
                             </td>
                             <td className="px-4 py-2 text-right">
                               <button
@@ -881,7 +956,7 @@ function LeagueAdminBody() {
                 {adding && (
                   <form onSubmit={(event) => void addPlayer(event, team)} className="border-t border-slate-100 bg-slate-50/80 p-4">
                     <p className="mb-3 text-sm font-semibold text-navy-950">添加一名成员</p>
-                    <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="grid gap-3 sm:grid-cols-4">
                       <label className="text-sm text-slate-600">
                         班级
                         <input
@@ -912,6 +987,16 @@ function LeagueAdminBody() {
                           placeholder="10"
                           inputMode="numeric"
                           required
+                        />
+                      </label>
+                      <label className="text-sm text-slate-600">
+                        手机号
+                        <input
+                          value={draft.phone}
+                          onChange={(event) => setPlayerDraft(team.id, 'phone', event.target.value)}
+                          className={inputClass}
+                          placeholder="用于绑定球员账号，可不填"
+                          inputMode="tel"
                         />
                       </label>
                     </div>

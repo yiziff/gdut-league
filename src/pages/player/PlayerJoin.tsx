@@ -3,18 +3,18 @@ import { Link, useNavigate } from 'react-router';
 import { useData } from '../../data/store';
 import { SPORT_MAP } from '../../sports';
 import { api, ApiError } from '../admin/api';
-import { usePlayerSession, type PlayerProfile } from './session';
+import { usePlayerSession, type MePayload } from './session';
 
 const fieldClass = 'field mt-1.5 w-full';
 
 export default function PlayerJoin() {
   const { leagues, teamMap } = useData();
   const navigate = useNavigate();
-  const { setProfile } = usePlayerSession();
+  const { user, ready, setMe, select } = usePlayerSession();
   const [leagueId, setLeagueId] = useState(leagues[0]?.league.id ?? '');
   const [teamId, setTeamId] = useState('');
   const [className, setClassName] = useState('');
-  const [name, setName] = useState('');
+  const [name, setName] = useState(user?.name ?? '');
   const [number, setNumber] = useState('');
   const [position, setPosition] = useState('');
   const [gender, setGender] = useState<'' | 'male' | 'female'>('male');
@@ -25,16 +25,29 @@ export default function PlayerJoin() {
 
   const leagueTeams = Object.values(teamMap).filter((team) => team.leagueId === leagueId);
 
+  if (!ready) return <p className="py-10 text-center text-sm text-slate-400">加载中…</p>;
+  if (!user) {
+    return (
+      <div className="empty-state mx-auto max-w-lg">
+        先用手机号登录，再报名。{' '}
+        <Link to="/player/login" className="font-medium text-gdut-700">
+          去登录
+        </Link>
+      </div>
+    );
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError('');
     setPending(true);
     try {
-      const result = await api<PlayerProfile & { status: 'ok' }>('/api/player/join', {
+      const result = await api<MePayload & { playerId: string }>('/api/player/join', {
         method: 'POST',
         body: JSON.stringify({ teamId, className, name, number, position, gender, height, weight }),
       });
-      setProfile({ player: result.player, team: result.team, league: result.league });
+      setMe(result);
+      select(result.playerId);
       navigate('/player');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '报名失败');
@@ -48,7 +61,7 @@ export default function PlayerJoin() {
       <div className="border-b border-slate-100 pb-5">
         <p className="text-xs font-semibold tracking-[0.16em] text-player-600 uppercase">Player registration</p>
         <h1 className="page-title mt-1">球员报名</h1>
-        <p className="mt-2 text-sm text-slate-500">选择联赛和队伍，填写个人资料。提交后会直接登录。</p>
+        <p className="mt-2 text-sm text-slate-500">名单里找不到自己时在这里报名。选择联赛和队伍，填写个人资料，报名后自动绑定到当前账号。</p>
       </div>
       <label className="block text-sm font-medium text-slate-700">
         联赛
@@ -111,10 +124,10 @@ export default function PlayerJoin() {
       </div>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button type="submit" disabled={pending || !teamId} className="btn-primary w-full justify-center disabled:opacity-60">
-        {pending ? '提交中…' : '报名并登录'}
+        {pending ? '提交中…' : '报名'}
       </button>
-      <Link to="/player/login" className="block text-center text-sm font-medium text-gdut-700">
-        已有名单，去登录
+      <Link to="/player/claim" className="block text-center text-sm font-medium text-gdut-700">
+        名单里已经有我，去认领
       </Link>
     </form>
   );

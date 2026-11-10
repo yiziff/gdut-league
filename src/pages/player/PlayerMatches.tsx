@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
 import MatchCard from '../../components/MatchCard';
+import { NeedProfile } from './AccountSwitcher';
 import { useData } from '../../data/store';
 import { dateOf, formatDate, todayString } from '../../lib/format';
 import { usePlayerSession } from './session';
@@ -24,14 +24,15 @@ const WEEK = ['一', '二', '三', '四', '五', '六', '日'];
 
 export default function PlayerMatches() {
   const { allMatches } = useData();
-  const { profile } = usePlayerSession();
+  const { accounts, profile } = usePlayerSession();
   const [scope, setScope] = useState<'all' | 'mine'>('all');
   const [day, setDay] = useState(todayString());
   const days = useMemo(() => weekOf(day), [day]);
+  const myTeams = new Set(accounts.map((account) => account.team.id));
 
   const visible = allMatches.filter((match) => {
     if (dateOf(match.time) !== day) return false;
-    if (scope === 'mine' && profile) return match.home === profile.team.id || match.away === profile.team.id;
+    if (scope === 'mine' && profile) return myTeams.has(match.home ?? '') || myTeams.has(match.away ?? '');
     return true;
   });
 
@@ -70,14 +71,7 @@ export default function PlayerMatches() {
       </div>
 
       <h2 className="mb-3 text-sm font-semibold text-navy-950">{formatDate(day)}</h2>
-      {scope === 'mine' && !profile && (
-        <div className="empty-state">
-          登录后才能看自己队伍的比赛。{' '}
-          <Link to="/player/login" className="font-medium text-gdut-700">
-            去登录
-          </Link>
-        </div>
-      )}
+      {scope === 'mine' && !profile && <NeedProfile action="才能看自己队伍的比赛" />}
       {(scope === 'all' || profile) && visible.length === 0 && <div className="empty-state">这天没有比赛。</div>}
       <div className="grid gap-4 lg:grid-cols-2">
         {(scope === 'all' || profile) &&

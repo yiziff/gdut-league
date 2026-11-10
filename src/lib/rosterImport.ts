@@ -1,7 +1,11 @@
+import { normalizePhone } from './phone';
+
 export interface ImportedPlayer {
   className: string;
   name: string;
   number: string;
+  /** 名单里填了手机号才有 */
+  phone?: string;
 }
 
 export interface ImportedTeam {
@@ -10,7 +14,34 @@ export interface ImportedTeam {
   players: ImportedPlayer[];
 }
 
-const HEADER_WORDS = new Set(['队伍', '队名', '学院', '队伍名称', '班级', '姓名', '名字', '号码', '球衣', '球衣号码', '简称', '编号']);
+const HEADER_WORDS = new Set([
+  '队伍',
+  '队名',
+  '学院',
+  '队伍名称',
+  '班级',
+  '姓名',
+  '名字',
+  '号码',
+  '球衣',
+  '球衣号码',
+  '简称',
+  '编号',
+  '手机',
+  '手机号',
+  '手机号码',
+  '电话',
+  '联系电话',
+]);
+
+/** 手机号可以放在任意一列（队伍名那列除外），拿出来后剩下的列按原来的格式解析。 */
+function takePhone(fields: string[], line: number): { fields: string[]; phone?: string } {
+  const at = fields.findIndex((field, index) => index > 0 && /^\+?[\d\s-]{7,}$/.test(field) && field.replace(/\D/g, '').length >= 7);
+  if (at < 0) return { fields };
+  const phone = normalizePhone(fields[at]);
+  if (!phone) throw new Error(`第 ${line} 行的手机号 ${fields[at]} 不对`);
+  return { fields: fields.filter((_, index) => index !== at), phone };
+}
 
 function splitFields(line: string): string[] {
   const sep = line.includes('\t') ? '\t' : line.includes(',') ? ',' : line.includes('，') ? '，' : null;
@@ -56,13 +87,13 @@ function shortOf(name: string, given?: string): string {
 /** 把粘贴的表格或文本解析成队伍和队员。四列是「队伍,班级,姓名,号码」，也可以先写队伍名，再写三列队员。 */
 export function parseRoster(text: string): ImportedTeam[] {
   const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
-  const rows: { line: number; fields: string[] }[] = [];
+  const rows: { line: number; fields: string[]; phone?: string }[] = [];
   for (let index = 0; index < lines.length; index++) {
     const raw = lines[index].trim();
     if (!raw) continue;
-    const fields = splitFields(raw);
-    if (fields.length === 0 || isHeader(fields)) continue;
-    rows.push({ line: index + 1, fields });
+    const split = splitFields(raw);
+    if (split.length === 0 || isHeader(split)) continue;
+    rows.push({ line: index + 1, ...takePhone(split, index + 1) });
   }
   if (rows.length === 0) throw new Error('名单是空的');
 
@@ -92,6 +123,10 @@ export function parseRoster(text: string): ImportedTeam[] {
     const used = numbers.get(team.name)!;
     const previous = used.get(player.number);
     if (previous) throw new Error(`第 ${line} 行的号码 ${player.number} 和第 ${previous} 行在「${team.name}」里重复`);
+    if (player.phone) {
+      const twin = team.players.find((item) => item.phone === player.phone);
+      if (twin) throw new Error(`第 ${line} 行的手机号和「${team.name}」里的 ${twin.name} 重复`);
+    }
     used.set(player.number, line);
     team.players.push(player);
   }
@@ -99,13 +134,14 @@ export function parseRoster(text: string): ImportedTeam[] {
   let current: ImportedTeam | null = null;
   for (const row of rows) {
     const { line, fields } = row;
+    const phone = row.phone ? { phone: row.phone } : {};
     if (columnMode) {
       if (fields.length < 4 || fields.length > 5) {
         throw new Error(`第 ${line} 行应为「队伍,班级,姓名,号码」`);
       }
       const [name, className, playerName, number, short] = fields;
       const team = teamFor(name, short, line);
-      addPlayer(team, { className, name: playerName, number }, line);
+      addPlayer(team, { className, name: playerName, number, ...phone }, line);
       continue;
     }
     if (fields.length === 1) {
@@ -118,7 +154,7 @@ export function parseRoster(text: string): ImportedTeam[] {
     }
     if (fields.length === 3) {
       if (!current) throw new Error(`第 ${line} 行前面要先写队伍名称，或改成四列：队伍,班级,姓名,号码`);
-      addPlayer(current, { className: fields[0], name: fields[1], number: fields[2] }, line);
+      addPlayer(current, { className: fields[0], name: fields[1], number: fields[2], ...phone }, line);
       continue;
     }
     throw new Error(`第 ${line} 行格式不对`);

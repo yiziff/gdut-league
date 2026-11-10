@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Match } from '../types';
-import { summarizeCareer } from './career';
+import { careerGames, summarizeCareer } from './career';
 
 function match(partial: Partial<Match> & Pick<Match, 'id' | 'time' | 'status'>): Match {
   return {
@@ -39,5 +39,16 @@ describe('summarizeCareer', () => {
     expect(summary.won).toBe(1);
     expect(summary.recorded).toBe(false);
     expect(summary.points).toBe(0);
+  });
+
+  it('lists finished games newest first and keeps a missing line empty', () => {
+    const games = careerGames('home', 'p1', [
+      match({ id: 'old', time: '2026-11-01T14:00', status: 'finished', away: 'opp-a', score: { home: 60, away: 50 }, lines: [{ playerId: 'p1', points: 12, rebounds: 3, assists: 2 }] }),
+      match({ id: 'new', time: '2026-11-03T14:00', status: 'finished', away: 'opp-b', venue: '东区', score: { home: 40, away: 70 } }),
+      match({ id: 'later', time: '2026-11-04T14:00', status: 'scheduled' }),
+    ]);
+    expect(games.map((game) => game.id)).toEqual(['new', 'old']);
+    expect(games[0]).toMatchObject({ result: 'L', own: 40, opp: 70, opponentId: 'opp-b', venue: '东区', points: null });
+    expect(games[1]).toMatchObject({ result: 'W', points: 12, rebounds: 3, assists: 2 });
   });
 });

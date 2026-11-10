@@ -1,6 +1,7 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import type { Request, Response } from 'express';
-import { db } from './db.ts';
+import { db, getUser, type User } from './db.ts';
+import { ApiError } from './http.ts';
 
 const COOKIE = 'gdut_session';
 const PLAYER_COOKIE = 'gdut_player';
@@ -73,36 +74,48 @@ export function clearSessionCookie(res: Response): void {
   res.setHeader('Set-Cookie', `${COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`);
 }
 
-export function createPlayerSession(playerId: string): string {
+const USER_SESSION_DAYS = 30;
+
+export function createUserSession(userId: string): string {
   const token = randomBytes(32).toString('hex');
-  const expires = Math.floor(Date.now() / 1000) + WEEK;
-  db.prepare('INSERT INTO player_sessions (token, player_id, expires_at) VALUES (?, ?, ?)').run(token, playerId, expires);
+  const expires = Math.floor(Date.now() / 1000) + USER_SESSION_DAYS * 24 * 3600;
+  db.prepare('INSERT INTO user_sessions (token, user_id, expires_at) VALUES (?, ?, ?)').run(token, userId, expires);
   return token;
 }
 
-export function destroyPlayerSession(token: string | undefined): void {
-  if (token) db.prepare('DELETE FROM player_sessions WHERE token = ?').run(token);
+export function destroyUserSession(token: string | undefined): void {
+  if (token) db.prepare('DELETE FROM user_sessions WHERE token = ?').run(token);
 }
 
+/** 网页用 Cookie；小程序没有 Cookie，用 Authorization: Bearer 带同一个 token。 */
 export function readPlayerToken(req: Request): string | undefined {
+  const header = req.headers.authorization ?? '';
+  if (header.startsWith('Bearer ')) return header.slice(7).trim() || undefined;
   return readNamedCookie(req, PLAYER_COOKIE);
 }
 
-export function playerIdFromRequest(req: Request): string | undefined {
+export function userIdFromRequest(req: Request): string | undefined {
   const token = readPlayerToken(req);
   if (!token) return undefined;
-  const row = db.prepare('SELECT player_id, expires_at FROM player_sessions WHERE token = ?').get(token) as
-    | { player_id: string; expires_at: number }
+  const row = db.prepare('SELECT user_id, expires_at FROM user_sessions WHERE token = ?').get(token) as
+    | { user_id: string; expires_at: number }
     | undefined;
   if (!row || row.expires_at < Date.now() / 1000) {
-    destroyPlayerSession(token);
+    destroyUserSession(token);
     return undefined;
   }
-  return row.player_id;
+  return row.user_id;
+}
+
+export function requireUser(req: Request): User {
+  const id = userIdFromRequest(req);
+  const user = id ? getUser(id) : undefined;
+  if (!user) throw new ApiError(401, '请先登录');
+  return user;
 }
 
 export function setPlayerCookie(res: Response, token: string): void {
-  res.append('Set-Cookie', `${PLAYER_COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${WEEK}`);
+  res.append('Set-Cookie', `${PLAYER_COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${USER_SESSION_DAYS * 24 * 3600}`);
 }
 
 export function clearPlayerCookie(res: Response): void {
